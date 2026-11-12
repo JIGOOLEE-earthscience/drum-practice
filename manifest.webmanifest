@@ -1,0 +1,13 @@
+{
+  "name": "박자 연습기",
+  "short_name": "박자 연습기",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#142036",
+  "theme_color": "#142036",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

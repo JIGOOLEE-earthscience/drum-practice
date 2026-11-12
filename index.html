@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#142036">
+<title>박자 연습기</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+:root{
+  --shell:#142036;      /* 미드나잇 라커 쉘 */
+  --shell-2:#1b2a45;
+  --shell-3:#24365a;
+  --line:#2f4368;
+  --head:#eef1f4;       /* 코티드 헤드 */
+  --muted:#8d9bb5;
+  --bronze:#d9a94c;     /* 심벌 브론즈 = 완벽 */
+  --silver:#b8c4d4;     /* 크롬 하드웨어 = 좋음 */
+  --early:#5db4f2;      /* 빠름 */
+  --late:#f2705f;       /* 늦음 */
+  --num:"Barlow Condensed","Pretendard Variable",Pretendard,system-ui,sans-serif;
+  --txt:"Pretendard Variable",Pretendard,system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;background:var(--shell);color:var(--head);font-family:var(--txt);}
+body{overscroll-behavior:none}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--bronze);outline-offset:2px}
+
+.app{display:flex;flex-direction:column;height:100dvh;max-width:560px;margin:0 auto;}
+main{flex:1;overflow-y:auto;padding:0 16px 16px}
+.view{display:none}
+.view.on{display:block}
+
+/* 템포 헤더 */
+.bar{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 8px}
+.tempo{display:flex;align-items:center;gap:6px;flex:1}
+.nudge{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--shell-2);font-size:24px;line-height:1;touch-action:manipulation}
+.nudge:active{background:var(--shell-3)}
+.bpm{display:flex;align-items:baseline;gap:4px;min-width:110px;justify-content:center}
+.bpm output{font-family:var(--num);font-weight:700;font-size:52px;line-height:1;letter-spacing:-.5px}
+.bpm span{font-size:13px;color:var(--muted)}
+.bar-right{display:flex;gap:6px}
+.chip{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--shell-2);padding:0 10px}
+#bpmRange{width:calc(100% - 32px);margin:0 16px 6px;accent-color:var(--bronze)}
+
+/* 레인 */
+.profile-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0 8px;font-size:13px;color:var(--muted)}
+.profile-row select{max-width:62%}
+.lane-wrap{position:relative;border-radius:14px;overflow:hidden;background:#0f1a2c;border:1px solid var(--line)}
+#lane{display:block;width:100%;height:150px}
+.lane-hint[hidden]{display:none}
+.lane-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;pointer-events:none}
+
+/* 판정 표시 */
+.readout{display:flex;align-items:baseline;justify-content:center;gap:10px;margin:14px 0 2px;min-height:86px}
+.rd-num{font-family:var(--num);font-weight:700;font-size:84px;line-height:.95;font-variant-numeric:tabular-nums;transition:color .08s}
+.rd-unit{font-size:16px;color:var(--muted);min-height:20px}
+.rd-text{font-size:22px;font-weight:700}
+.c-perfect{color:var(--bronze)} .c-good{color:var(--silver)} .c-early{color:var(--early)} .c-late{color:var(--late)} .c-miss{color:var(--late)}
+#gauge{display:block;width:100%;height:64px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px;text-align:center}
+.stats b{display:block;font-family:var(--num);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums}
+.stats span{font-size:12px;color:var(--muted)}
+.trend{text-align:center;min-height:22px;margin:8px 0 4px;font-size:15px}
+.beat-dots{display:flex;justify-content:center;gap:12px;margin:8px 0 14px}
+.beat-dots i{width:16px;height:16px;border-radius:50%;background:var(--shell-3);transition:background .05s}
+.beat-dots i.down{width:20px;height:20px;margin-top:-2px}
+.beat-dots i.on{background:var(--head)}
+.beat-dots i.down.on{background:var(--bronze)}
+.beat-dots.muted i.on{background:var(--line)}
+
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px;margin-bottom:14px}
+.opt label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px 2px}
+.opt select{width:100%}
+.opt.wide{grid-column:1 / -1}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--shell-2);padding:0 12px}
+.toggle input{width:20px;height:20px;accent-color:var(--bronze)}
+
+.start{position:sticky;bottom:8px;z-index:2;box-shadow:0 6px 20px rgba(5,10,20,.5);display:block;width:100%;height:64px;border-radius:16px;border:0;background:var(--bronze);color:#1a1405;font-size:22px;font-weight:800;letter-spacing:.5px}
+.start.stop{background:var(--head);color:var(--shell)}
+.warn{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(242,112,95,.12);color:#ffc2b8;font-size:13px;line-height:1.5}
+.warn button{background:none;border:0;color:var(--bronze);font-weight:700;padding:0;text-decoration:underline}
+
+/* 공통 블록 */
+h2{font-size:20px;margin:14px 0 6px}
+h3{font-size:15px;margin:18px 0 8px;color:var(--silver)}
+p.help{font-size:14px;line-height:1.6;color:var(--muted);margin:0 0 10px}
+.card{background:var(--shell-2);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.btn{height:44px;border-radius:12px;border:1px solid var(--line);background:var(--shell-3);padding:0 14px;font-weight:600}
+.btn.primary{background:var(--bronze);border-color:var(--bronze);color:#1a1405}
+.btn.small{height:34px;padding:0 10px;font-size:14px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+input[type=text],select{height:40px;border-radius:10px;border:1px solid var(--line);background:var(--shell-2);padding:0 10px}
+input[type=range]{accent-color:var(--bronze)}
+
+.plist{list-style:none;margin:0;padding:0}
+.plist li{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.plist li:last-child{border-bottom:0}
+.plist input[type=radio]{width:20px;height:20px;accent-color:var(--bronze)}
+.plist .pname{font-weight:700}
+.plist .pmeta{font-size:13px;color:var(--muted)}
+.plist .pval{font-family:var(--num);font-size:24px;font-weight:600;margin-left:auto}
+.plist .pval.none{font-family:var(--txt);font-size:13px;color:var(--late)}
+
+#calLane{display:block;width:100%;height:90px;border-radius:10px;background:#0f1a2c;margin:10px 0}
+.cal-big{font-family:var(--num);font-size:56px;font-weight:700;line-height:1}
+.cal-progress{font-size:14px;color:var(--muted)}
+
+.meter{position:relative;height:18px;border-radius:9px;background:#0f1a2c;overflow:hidden;margin:8px 0}
+.meter .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--silver);transition:width .05s linear}
+.meter .fill.hit{background:var(--bronze)}
+.meter .thr{position:absolute;top:-2px;bottom:-2px;width:3px;background:var(--late)}
+
+.seg{display:flex;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.seg button{flex:1;height:44px;border:0;background:var(--shell-2);font-size:14px}
+.seg button small{display:block;font-size:11px;color:var(--muted)}
+.seg button.on{background:var(--shell-3);box-shadow:inset 0 -3px 0 var(--bronze)}
+
+.hist{list-style:none;margin:0;padding:0}
+.hist li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.hist .hmain{font-weight:700}
+.hist .hsub{font-size:13px;color:var(--muted)}
+.hist .hacc{font-family:var(--num);font-size:28px;font-weight:600}
+.empty{color:var(--muted);text-align:center;padding:40px 0;font-size:14px;line-height:1.7}
+
+/* 하단 탭 */
+nav.tabs{display:flex;border-top:1px solid var(--line);background:var(--shell);padding-bottom:env(safe-area-inset-bottom)}
+nav.tabs button{flex:1;height:56px;border:0;background:none;color:var(--muted);font-size:14px;font-weight:600}
+nav.tabs button.on{color:var(--head);box-shadow:inset 0 3px 0 var(--bronze)}
+
+/* 결과 시트 */
+.sheet{position:fixed;inset:0;background:rgba(5,10,20,.6);display:none;align-items:flex-end;justify-content:center;z-index:10}
+.sheet.on{display:flex}
+.sheet-body{width:100%;max-width:560px;max-height:92dvh;overflow-y:auto;background:var(--shell);border-top-left-radius:20px;border-top-right-radius:20px;border:1px solid var(--line);padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+.sum-top{display:flex;align-items:baseline;gap:12px}
+.sum-acc{font-family:var(--num);font-size:72px;font-weight:700;line-height:1}
+.catbar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:12px 0 6px;background:var(--shell-3)}
+.catbar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:13px;color:var(--muted)}
+.legend b{font-family:var(--num);font-size:18px;color:var(--head);margin-left:4px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:1px}
+#sumChart{display:block;width:100%;height:190px;margin:12px 0;background:#0f1a2c;border-radius:12px}
+.notes{margin:0;padding-left:18px;line-height:1.7;font-size:15px}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--head);color:var(--shell);padding:10px 16px;border-radius:10px;font-weight:700;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+.toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="tempo">
+      <button class="nudge" id="bpmDown" aria-label="BPM 내리기">−</button>
+      <div class="bpm"><output id="bpmOut">100</output><span>BPM</span></div>
+      <button class="nudge" id="bpmUp" aria-label="BPM 올리기">+</button>
+    </div>
+    <div class="bar-right">
+      <select id="sigSel" class="chip" aria-label="박자표">
+        <option value="2">2/4</option><option value="3">3/4</option><option value="4">4/4</option><option value="5">5/4</option><option value="6">6/4</option>
+      </select>
+      <button id="tapBtn" class="chip">탭</button>
+    </div>
+  </header>
+  <input type="range" id="bpmRange" min="40" max="240" step="1" aria-label="BPM">
+
+  <main>
+    <!-- 연습 -->
+    <section class="view on" data-view="practice">
+      <div class="profile-row">
+        <span>듣는 장치</span>
+        <select id="profSel" aria-label="듣는 장치"></select>
+      </div>
+      <div class="lane-wrap">
+        <canvas id="lane"></canvas>
+        <div id="laneHint" class="lane-hint">시작을 누르면 박자선이 오른쪽에서 흘러옵니다</div>
+      </div>
+
+      <div class="readout" aria-live="polite">
+        <div id="rdNum" class="rd-num">—</div>
+        <div><div class="rd-unit" id="rdUnit"></div><div id="rdText" class="rd-text">대기 중</div></div>
+      </div>
+      <canvas id="gauge"></canvas>
+
+      <div class="stats">
+        <div><b id="stMean">—</b><span>평균 오차</span></div>
+        <div><b id="stSd">—</b><span>흔들림</span></div>
+        <div><b id="stAcc">—</b><span>정확도</span></div>
+        <div><b id="stCount">0</b><span>타수</span></div>
+      </div>
+      <p id="trend" class="trend"></p>
+      <div id="beatDots" class="beat-dots"></div>
+
+      <div class="opts">
+        <div class="opt">
+          <label for="judgeSel">내가 치는 가장 잘게 쪼갠 음표</label>
+          <select id="judgeSel">
+            <option value="1">4분음표</option><option value="2">8분음표</option><option value="3">셋잇단 8분</option><option value="4">16분음표</option>
+          </select>
+        </div>
+        <div class="opt">
+          <label for="clickSel">메트로놈 소리</label>
+          <select id="clickSel">
+            <option value="1">4분음표마다</option><option value="2">8분음표마다</option><option value="3">셋잇단마다</option><option value="4">16분음표마다</option>
+          </select>
+        </div>
+        <div class="opt wide">
+          <label for="gapSel">메트로놈 끊기 연습 (꺼진 마디에서도 템포를 지키는지 확인)</label>
+          <select id="gapSel">
+            <option value="off">끊지 않음</option>
+            <option value="2-2">2마디 듣고 2마디 무음</option>
+            <option value="4-4">4마디 듣고 4마디 무음</option>
+            <option value="3-1">3마디 듣고 1마디 무음</option>
+            <option value="1-3">1마디 듣고 3마디 무음</option>
+          </select>
+        </div>
+        <div class="opt wide">
+          <label class="toggle" for="allNotesChk" style="margin:0;color:var(--head);font-size:14px">격자마다 다 치는 연습 (빠뜨린 박을 놓침으로 표시)<input type="checkbox" id="allNotesChk"></label>
+        </div>
+      </div>
+
+      <button id="startBtn" class="start">시작</button>
+      <div id="calWarn" class="warn" hidden></div>
+    </section>
+
+    <!-- 보정 -->
+    <section class="view" data-view="calib">
+      <h2>듣는 장치별 지연 보정</h2>
+      <p class="help">이어폰, 블루투스, 스피커마다 소리가 늦게 들리는 정도가 다릅니다. 장치마다 한 번씩 보정해 두면 그 장치를 고를 때 자동으로 적용됩니다.</p>
+
+      <div class="card">
+        <ul class="plist" id="plist"></ul>
+        <h3>장치 추가</h3>
+        <div class="row">
+          <input type="text" id="newName" class="grow" placeholder="예: 갤럭시 버즈" maxlength="20">
+          <select id="newType">
+            <option value="wired">유선 이어폰·헤드폰</option>
+            <option value="bt">블루투스</option>
+            <option value="speaker">폰 스피커</option>
+          </select>
+          <button class="btn" id="addProf">추가</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">보정하기: <span id="calName"></span></h3>
+        <p class="help">해당 장치를 연결하고 시작을 누르세요. 4번 세고 나면 클릭이 16번 나옵니다. 클릭에 정확히 맞춰 스네어나 패드를 치세요.</p>
+        <canvas id="calLane"></canvas>
+        <div class="row">
+          <div class="grow"><div class="cal-big" id="calBig">—</div><div class="cal-progress" id="calProg">대기 중</div></div>
+          <button class="btn primary" id="calStart">보정 시작</button>
+        </div>
+        <h3>직접 미세 조정</h3>
+        <div class="row">
+          <button class="btn small" data-adj="-5">−5ms</button>
+          <button class="btn small" data-adj="-1">−1ms</button>
+          <button class="btn small" data-adj="1">+1ms</button>
+          <button class="btn small" data-adj="5">+5ms</button>
+        </div>
+        <p class="help" style="margin-top:10px">정확히 쳤다고 느끼는데 계속 ‘늦음’이 나오면 값을 올리고, 계속 ‘빠름’이 나오면 값을 내리세요.</p>
+      </div>
+      <div class="card" id="btNote" hidden>
+        <p class="help" style="margin:0">블루투스 이어폰을 연결하면 폰이 이어폰의 마이크로 소리를 받을 수 있습니다. 판정이 이상하면 설정에서 입력 마이크를 폰 내장 마이크로 바꾸세요.</p>
+      </div>
+    </section>
+
+    <!-- 설정 -->
+    <section class="view" data-view="settings">
+      <h2>설정</h2>
+
+      <div class="card">
+        <h3 style="margin-top:0">판정 기준</h3>
+        <div class="seg" id="diffSeg">
+          <button data-diff="easy">여유<small>±25 / 50ms</small></button>
+          <button data-diff="normal">보통<small>±15 / 35ms</small></button>
+          <button data-diff="hard">엄격<small>±8 / 20ms</small></button>
+        </div>
+        <p class="help" style="margin-top:8px">앞 숫자 안이면 완벽, 뒤 숫자 안이면 좋음, 그 밖이면 빠름 또는 늦음입니다.</p>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">마이크 감도</h3>
+        <p class="help">빨간 선을 넘는 소리만 타격으로 셉니다. 드럼을 칠 때는 막대가 선을 넘고, 가만히 있을 때는 넘지 않아야 합니다.</p>
+        <div class="meter"><div class="fill" id="meterFill"></div><div class="thr" id="meterThr"></div></div>
+        <input type="range" id="sensRange" min="0" max="100" step="1" style="width:100%" aria-label="마이크 감도">
+        <div class="row" style="justify-content:space-between;font-size:13px;color:var(--muted)"><span>둔감</span><span>민감</span></div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn" id="micOn">마이크 켜기</button>
+          <button class="btn" id="autoSens">조용히 2초 두고 자동 설정</button>
+        </div>
+        <h3>입력 마이크</h3>
+        <select id="inputSel" style="width:100%"><option value="">기본 마이크</option></select>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">메트로놈</h3>
+        <label class="help" for="volRange">클릭 음량</label>
+        <input type="range" id="volRange" min="0" max="1" step="0.05" style="width:100%">
+        <label class="toggle" style="margin-top:10px">시작 전 1마디 세기<input type="checkbox" id="countInChk"></label>
+        <label class="toggle" style="margin-top:8px">연습 중 화면 꺼짐 방지<input type="checkbox" id="wakeChk"></label>
+      </div>
+
+      <div class="card">
+        <button class="btn" id="resetAll">설정과 기록 모두 지우기</button>
+      </div>
+    </section>
+
+    <!-- 기록 -->
+    <section class="view" data-view="history">
+      <div class="row" style="justify-content:space-between"><h2>연습 기록</h2><button class="btn small" id="clearHist">기록 지우기</button></div>
+      <ul class="hist" id="histList"></ul>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button data-tab="practice" class="on">연습</button>
+    <button data-tab="calib">보정</button>
+    <button data-tab="settings">설정</button>
+    <button data-tab="history">기록</button>
+  </nav>
+</div>
+
+<div class="sheet" id="sheet">
+  <div class="sheet-body">
+    <div class="row" style="justify-content:space-between">
+      <div class="hsub" id="sumMeta" style="color:var(--muted);font-size:14px"></div>
+      <button class="btn small" id="sheetClose">닫기</button>
+    </div>
+    <div class="sum-top"><div class="sum-acc" id="sumAcc">—</div><div style="color:var(--muted)">정확도</div></div>
+    <div class="catbar" id="sumBar"></div>
+    <div class="legend" id="sumLegend"></div>
+    <canvas id="sumChart"></canvas>
+    <ul class="notes" id="sumNotes"></ul>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   1. 저장 / 설정
+   ========================================================= */
+const KEY = 'drumpractice.settings.v1';
+const HKEY = 'drumpractice.history.v1';
+const DEF = {
+  bpm: 100, beats: 4, clickSub: 1, judgeSub: 2, allNotes: false, gap: 'off',
+  diff: 'normal', sens: 55, inputId: '', clickVol: 0.8, countIn: true, wake: true,
+  profiles: [{ id: 'p1', name: '유선 이어폰', type: 'wired', offset: null }],
+  active: 'p1'
+};
+const WIN = { easy: [25, 50], normal: [15, 35], hard: [8, 20] };
+const TYPE_LABEL = { wired: '유선', bt: '블루투스', speaker: '스피커' };
+
+let S = load();
+let HIST = loadHist();
+function load() {
+  try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); }
+  catch (e) { return Object.assign({}, DEF); }
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+function loadHist() { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch (e) { return []; } }
+function saveHist() { try { localStorage.setItem(HKEY, JSON.stringify(HIST.slice(0, 60))); } catch (e) {} }
+function prof() { return S.profiles.find(p => p.id === S.active) || S.profiles[0]; }
+/* 보정 안 된 장치는 기기 추정치로 대신함 */
+function offsetSec() {
+  const p = prof();
+  if (p && p.offset != null) return p.offset / 1000;
+  const est = ctx ? ((ctx.baseLatency || 0) + (ctx.outputLatency || 0)) : 0.05;
+  return est + 0.03;
+}
+const $ = id => document.getElementById(id);
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 1800); }
+
+/* =========================================================
+   2. 오디오: 타격 감지 워클릿
+   마이크 신호의 빠른 포락선이 느린 포락선보다 급격히 커지는
+   첫 샘플을 '친 순간'으로 기록함 (오디오 시계 기준)
+   ========================================================= */
+const WORKLET_SRC = `
+class OnsetProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.thr = 0.025; this.ratio = 1.8;
+    this.refr = Math.round(0.05 * sampleRate);
+    this.fast = 0; this.slow = 0;
+    this.relFast = Math.exp(-1 / (0.004 * sampleRate));
+    this.slowCoef = 1 - Math.exp(-1 / (0.03 * sampleRate));
+    const rc = 1 / (2 * Math.PI * 60);
+    this.hpA = rc / (rc + 1 / sampleRate); this.hpX = 0; this.hpY = 0;
+    this.last = -1e12; this.pending = null;
+    this.mPeak = 0; this.mCount = 0; this.mEvery = Math.round(0.05 * sampleRate);
+    this.port.onmessage = (e) => {
+      const d = e.data;
+      if (d.thr != null) this.thr = d.thr;
+      if (d.ratio != null) this.ratio = d.ratio;
+      if (d.refr != null) this.refr = Math.round(d.refr * sampleRate);
+    };
+  }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (!ch) return true;
+    const base = currentFrame;
+    for (let i = 0; i < ch.length; i++) {
+      const x = ch[i];
+      const y = this.hpA * (this.hpY + x - this.hpX); this.hpX = x; this.hpY = y;
+      const a = y < 0 ? -y : y;
+      this.fast = a > this.fast ? a : this.fast * this.relFast;
+      this.slow += (this.fast - this.slow) * this.slowCoef;
+      if (a > this.mPeak) this.mPeak = a;
+      const f = base + i;
+      if (this.pending) {
+        if (a > this.pending.peak) this.pending.peak = a;
+        if (--this.pending.remain <= 0) {
+          this.port.postMessage({ type: 'onset', t: this.pending.frame / sampleRate, peak: this.pending.peak });
+          this.pending = null;
+        }
+      } else if (this.fast > this.thr && this.fast > this.slow * this.ratio && f - this.last > this.refr) {
+        this.last = f;
+        this.pending = { frame: f, peak: a, remain: Math.round(0.008 * sampleRate) };
+      }
+      if (++this.mCount >= this.mEvery) {
+        this.port.postMessage({ type: 'level', peak: this.mPeak });
+        this.mPeak = 0; this.mCount = 0;
+      }
+    }
+    return true;
+  }
+}
+registerProcessor('onset', OnsetProcessor);
+`;
+
+let ctx = null, micStream = null, micSrc = null, onsetNode = null, clickBus = null;
+window.__drum = { onsets: [], hits: [] }; // 테스트용 기록
+
+async function ensureAudio() {
+  if (!ctx) {
+    ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: 'application/javascript' }));
+    await ctx.audioWorklet.addModule(url);
+    clickBus = ctx.createGain(); clickBus.gain.value = S.clickVol; clickBus.connect(ctx.destination);
+  }
+  if (ctx.state !== 'running') await ctx.resume();
+  if (!micStream) await openMic();
+}
+
+async function openMic() {
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  if (micSrc) { try { micSrc.disconnect(); } catch (e) {} }
+  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 };
+  if (S.inputId) audio.deviceId = { exact: S.inputId };
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio });
+  } catch (e) {
+    if (S.inputId) { S.inputId = ''; save(); delete audio.deviceId; micStream = await navigator.mediaDevices.getUserMedia({ audio }); }
+    else throw e;
+  }
+  micSrc = ctx.createMediaStreamSource(micStream);
+  if (!onsetNode) {
+    onsetNode = new AudioWorkletNode(ctx, 'onset', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+    const mute = ctx.createGain(); mute.gain.value = 0;
+    onsetNode.connect(mute).connect(ctx.destination); // 그래프에 연결돼야 처리됨
+    onsetNode.port.onmessage = onDetector;
+  }
+  micSrc.connect(onsetNode);
+  pushDetector();
+  fillInputs();
+}
+
+function sensToThr(s) { return Math.pow(10, -0.5 - 2.2 * (s / 100)); }
+function thrToSens(t) { return Math.max(0, Math.min(100, Math.round((-0.5 - Math.log10(t)) / 2.2 * 100))); }
+function pushDetector() {
+  if (!onsetNode) return;
+  // 32분음표 같은 빠른 연타도 잡도록, 격자 간격에 맞춰 재감지 대기 시간을 줄임
+  const spacing = 60 / S.bpm / Math.max(S.judgeSub, 2);
+  onsetNode.port.postMessage({ thr: sensToThr(S.sens), refr: Math.min(0.05, spacing * 0.55) });
+}
+
+/* =========================================================
+   3. 메트로놈 스케줄러 (오디오 시계로 미리 예약)
+   ========================================================= */
+const T = { running: false, kind: null, timer: null, beats: [], nextT: 0, idx: 0, countIn: 0, bpm: 100, bpb: 4, matched: new Set(), missCursor: 0, endAt: null };
+
+function gapMuted(bar) {
+  if (S.gap === 'off' || bar < 0 || T.kind !== 'practice') return false;
+  const [on, off] = S.gap.split('-').map(Number);
+  return (bar % (on + off)) >= on;
+}
+
+function click(t, type) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  const f = type === 'accent' ? 1760 : type === 'beat' ? 1320 : 880;
+  const v = type === 'accent' ? 1 : type === 'beat' ? 0.7 : 0.32;
+  o.type = 'triangle'; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(v, t + 0.001);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+  o.connect(g).connect(clickBus);
+  o.start(t); o.stop(t + 0.06);
+}
+
+function scheduleBeat(t, i) {
+  const bpb = T.bpb, beatDur = 60 / T.bpm;
+  const rel = i - T.countIn;
+  const inCount = rel < 0;
+  const bar = Math.floor(rel / bpb);
+  const beatInBar = ((rel % bpb) + bpb) % bpb;
+  const muted = !inCount && gapMuted(bar);
+  T.beats.push({ t, i, beatDur, beatInBar, bar, inCount, muted });
+  if (!muted) {
+    click(t, beatInBar === 0 ? 'accent' : 'beat');
+    const sub = T.kind === 'practice' && !inCount ? S.clickSub : 1;
+    for (let j = 1; j < sub; j++) click(t + j * beatDur / sub, 'sub');
+  }
+}
+
+function tick() {
+  if (T.kind === 'practice') T.bpm = S.bpm; // 연주 중 BPM 변경은 다음 박부터
+  const ahead = 0.12;
+  while (T.nextT < ctx.currentTime + ahead) {
+    if (T.kind === 'calib' && T.idx >= T.countIn + CAL_N) {
+      if (T.endAt == null) T.endAt = T.nextT + 0.6;
+      break;
+    }
+    scheduleBeat(T.nextT, T.idx);
+    T.nextT += 60 / T.bpm;
+    T.idx++;
+  }
+  if (T.kind === 'practice' && S.allNotes) checkMisses();
+  if (T.kind === 'calib' && T.endAt != null && ctx.currentTime > T.endAt) finishCalib();
+}
+
+function startTransport(kind) {
+  T.kind = kind; T.running = true;
+  T.bpm = kind === 'calib' ? CAL_BPM : S.bpm;
+  T.bpb = kind === 'calib' ? 4 : S.beats;
+  T.countIn = (kind === 'calib' || S.countIn) ? T.bpb : 0;
+  T.beats = []; T.idx = 0; T.matched = new Set(); T.missCursor = 0; T.endAt = null;
+  T.nextT = ctx.currentTime + 0.2;
+  T.startT = T.nextT;
+  tick();
+  T.timer = setInterval(tick, 25);
+  wake(true);
+}
+function stopTransport() {
+  clearInterval(T.timer); T.timer = null; T.running = false;
+  wake(false);
+}
+
+/* 가장 가까운 판정 격자점 찾기 (BPM이 바뀌어도 박마다 길이를 따로 기억함) */
+function nearestGrid(t) {
+  const B = T.beats; if (!B.length) return null;
+  const sub = S.judgeSub;
+  let k = B.length - 1;
+  while (k > 0 && B[k].t > t) k--;
+  const cands = [];
+  const pushBeat = (b, onlyFirst) => {
+    const n = onlyFirst ? 1 : sub;
+    for (let j = 0; j < n; j++) cands.push({ time: b.t + j * b.beatDur / sub, id: b.i * sub + j, beat: b, spacing: b.beatDur / sub });
+  };
+  pushBeat(B[k], false);
+  if (k + 1 < B.length) pushBeat(B[k + 1], true);
+  else { const b = B[k]; pushBeat({ t: b.t + b.beatDur, i: b.i + 1, beatDur: b.beatDur, inCount: false, muted: gapMuted(b.bar + (b.beatInBar === T.bpb - 1 ? 1 : 0)), beatInBar: (b.beatInBar + 1) % T.bpb }, true); }
+  let best = null;
+  for (const c of cands) if (!best || Math.abs(t - c.time) < Math.abs(t - best.time)) best = c;
+  return best;
+}
+
+/* =========================================================
+   4. 판정
+   ========================================================= */
+let sess = null;
+function newSession() {
+  sess = { start: Date.now(), bpm: S.bpm, beats: S.beats, judgeSub: S.judgeSub, gap: S.gap, diff: S.diff, profile: prof().name, hits: [], misses: [], extras: 0 };
+}
+
+function classify(errMs) {
+  const w = WIN[S.diff], a = Math.abs(errMs);
+  if (a <= w[0]) return 'perfect';
+  if (a <= w[1]) return 'good';
+  return errMs < 0 ? 'early' : 'late';
+}
+
+function onDetector(e) {
+  const m = e.data;
+  if (m.type === 'level') { meter(m.peak); return; }
+  if (m.type !== 'onset') return;
+  meterHit();
+  window.__drum.onsets.push(m.t);
+  if (!T.running) return;
+  if (T.kind === 'calib') calibHit(m.t);
+  else practiceHit(m.t);
+}
+
+function practiceHit(tRaw) {
+  const t = tRaw - offsetSec();
+  if (t < T.startT + T.countIn * (60 / T.bpm) - 0.5 * 60 / T.bpm / S.judgeSub) return; // 세는 동안 친 건 무시
+  const g = nearestGrid(t);
+  if (!g || g.beat.inCount) return;
+  const err = (t - g.time) * 1000;
+  if (T.matched.has(g.id)) { sess.extras++; return; } // 같은 격자에 두 번 들어온 소리
+  T.matched.add(g.id);
+  const cat = classify(err);
+  const h = { t, gt: g.time, err, cat, muted: !!g.beat.muted };
+  sess.hits.push(h);
+  window.__drum.hits.push(h);
+  laneHits.push(h);
+  showJudge(h);
+  updateStats();
+}
+
+function checkMisses() {
+  const now = ctx.currentTime - offsetSec();
+  const B = T.beats, sub = S.judgeSub;
+  while (T.missCursor < B.length) {
+    const b = B[T.missCursor];
+    if (now < b.t + b.beatDur + b.beatDur / sub / 2 + 0.03) break;
+    if (!b.inCount) {
+      for (let j = 0; j < sub; j++) {
+        const id = b.i * sub + j;
+        if (!T.matched.has(id)) {
+          T.matched.add(id);
+          const m = { gt: b.t + j * b.beatDur / sub, cat: 'miss', muted: b.muted };
+          sess.misses.push(m); laneHits.push(m);
+          showJudge(m);
+        }
+      }
+      updateStats();
+    }
+    T.missCursor++;
+  }
+}
+
+function showJudge(h) {
+  const num = $('rdNum'), txt = $('rdText'), unit = $('rdUnit');
+  const cls = 'c-' + h.cat;
+  num.className = 'rd-num ' + cls; txt.className = 'rd-text ' + cls;
+  if (h.cat === 'miss') { num.textContent = '×'; txt.textContent = '놓침'; unit.textContent = ''; return; }
+  const v = Math.round(h.err);
+  num.textContent = (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v);
+  unit.textContent = 'ms';
+  txt.textContent = { perfect: '완벽', good: v < 0 ? '좋음 (살짝 빠름)' : v > 0 ? '좋음 (살짝 늦음)' : '좋음', early: '빠름', late: '늦음' }[h.cat];
+}
+
+function meanSd(arr) {
+  if (!arr.length) return [0, 0];
+  const m = arr.reduce((a, b) => a + b, 0) / arr.length;
+  const v = arr.reduce((a, b) => a + (b - m) * (b - m), 0) / arr.length;
+  return [m, Math.sqrt(v)];
+}
+function signed(v) { v = Math.round(v); return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v); }
+
+function updateStats() {
+  const recent = sess.hits.slice(-16).map(h => h.err);
+  const [m, sd] = meanSd(recent);
+  const ok = sess.hits.filter(h => h.cat === 'perfect' || h.cat === 'good').length;
+  const total = sess.hits.length + sess.misses.length;
+  $('stMean').textContent = recent.length ? signed(m) : '—';
+  $('stSd').textContent = recent.length > 1 ? '±' + Math.round(sd) : '—';
+  $('stAcc').textContent = total ? Math.round(ok / total * 100) + '%' : '—';
+  $('stCount').textContent = sess.hits.length;
+  const tr = $('trend');
+  if (recent.length < 6) { tr.textContent = ''; tr.className = 'trend'; return; }
+  if (m > 10) { tr.textContent = '최근 박이 계속 늦게 들어옵니다. 박자가 밀리는 중'; tr.className = 'trend c-late'; }
+  else if (m < -10) { tr.textContent = '최근 박이 계속 빨리 들어옵니다. 박자를 당기는 중'; tr.className = 'trend c-early'; }
+  else if (sd > 25) { tr.textContent = '중심은 맞지만 박마다 들쭉날쭉합니다'; tr.className = 'trend'; }
+  else { tr.textContent = '박자 중심이 잘 잡혀 있습니다'; tr.className = 'trend c-perfect'; }
+}
+
+/* =========================================================
+   5. 그리기: 노래방식 흐르는 레인 + 오차 게이지
+   ========================================================= */
+let laneHits = [];
+const COL = { perfect: '#d9a94c', good: '#b8c4d4', early: '#5db4f2', late: '#f2705f', miss: '#f2705f' };
+
+function fitCanvas(c) {
+  const dpr = window.devicePixelRatio || 1, r = c.getBoundingClientRect();
+  const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return [g, r.width, r.height];
+}
+
+function drawLane() {
+  const c = $('lane'); const [g, W, H] = fitCanvas(c);
+  g.clearRect(0, 0, W, H);
+  if (!T.running || T.kind !== 'practice') return;
+  const now = ctx.currentTime - offsetSec();
+  const beatDur = 60 / T.bpm;
+  const pps = W / (beatDur * T.bpb * 1.5);    // 화면에 1.5마디
+  const px = W * 0.26;
+  const X = t => px + (t - now) * pps;
+  const tMin = now - px / pps - 0.1, tMax = now + (W - px) / pps + 0.1;
+  const midY = H * 0.52;
+
+  // 박 목록 (예약 안 된 미래 박은 연장해서 그림)
+  const B = T.beats; const list = [];
+  for (let k = Math.max(0, B.length - 64); k < B.length; k++) list.push(B[k]);
+  if (B.length) {
+    let b = B[B.length - 1];
+    while (b.t < tMax) {
+      const rel = b.i + 1 - T.countIn, bar = Math.floor(rel / T.bpb);
+      b = { t: b.t + 60 / T.bpm, i: b.i + 1, beatDur: 60 / T.bpm, beatInBar: ((rel % T.bpb) + T.bpb) % T.bpb, bar, inCount: rel < 0, muted: gapMuted(bar) };
+      list.push(b);
+    }
+  }
+  // 무음/카운트 구간 음영
+  for (const b of list) {
+    if (b.t + b.beatDur < tMin || b.t > tMax) continue;
+    if (b.muted || b.inCount) {
+      g.fillStyle = b.inCount ? 'rgba(184,196,212,.06)' : 'rgba(93,180,242,.08)';
+      g.fillRect(X(b.t), 0, b.beatDur * pps + 1, H);
+      if (b.beatInBar === 0) {
+        g.fillStyle = '#8d9bb5'; g.font = '12px Pretendard Variable, sans-serif';
+        g.fillText(b.inCount ? '세는 중' : '메트로놈 무음', X(b.t) + 6, 16);
+      }
+    }
+  }
+  // 격자선
+  const sub = S.judgeSub;
+  for (const b of list) {
+    for (let j = 0; j < sub; j++) {
+      const t = b.t + j * b.beatDur / sub; if (t < tMin || t > tMax) continue;
+      const x = X(t);
+      if (j === 0 && b.beatInBar === 0) { g.strokeStyle = 'rgba(238,241,244,.55)'; g.lineWidth = 2; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+      else if (j === 0) { g.strokeStyle = 'rgba(238,241,244,.28)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, 18); g.lineTo(x, H - 18); g.stroke(); }
+      else { g.strokeStyle = 'rgba(238,241,244,.14)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, midY - 22); g.lineTo(x, midY + 22); g.stroke(); }
+      if (!b.inCount) { g.fillStyle = 'rgba(238,241,244,.18)'; g.beginPath(); g.arc(x, midY, j === 0 ? 7 : 5, 0, Math.PI * 2); g.fill(); }
+    }
+  }
+  // 타격
+  laneHits = laneHits.filter(h => h.gt > tMin - 1);
+  for (const h of laneHits) {
+    const gx = X(h.gt);
+    if (h.cat === 'miss') {
+      g.strokeStyle = COL.miss; g.lineWidth = 2.5;
+      g.beginPath(); g.moveTo(gx - 6, midY - 6); g.lineTo(gx + 6, midY + 6); g.moveTo(gx + 6, midY - 6); g.lineTo(gx - 6, midY + 6); g.stroke();
+      continue;
+    }
+    const hx = X(h.t);
+    g.strokeStyle = COL[h.cat]; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(gx, midY); g.lineTo(hx, midY); g.stroke();
+    g.fillStyle = COL[h.cat]; g.beginPath(); g.arc(hx, midY, 9, 0, Math.PI * 2); g.fill();
+  }
+  // 판정선
+  g.fillStyle = '#d9a94c'; g.fillRect(px - 1.5, 0, 3, H);
+}
+
+function drawGauge() {
+  const c = $('gauge'); const [g, W, H] = fitCanvas(c);
+  g.clearRect(0, 0, W, H);
+  const w = WIN[S.diff], range = Math.max(60, w[1] * 2);
+  const cx = W / 2, sx = (W / 2 - 14) / range;
+  const X = ms => cx + Math.max(-range, Math.min(range, ms)) * sx;
+  const y0 = 16, y1 = H - 18;
+  g.fillStyle = '#1b2a45'; g.fillRect(8, y0, W - 16, y1 - y0);
+  g.fillStyle = 'rgba(184,196,212,.14)'; g.fillRect(X(-w[1]), y0, (w[1] * 2) * sx, y1 - y0);
+  g.fillStyle = 'rgba(217,169,76,.25)'; g.fillRect(X(-w[0]), y0, (w[0] * 2) * sx, y1 - y0);
+  g.fillStyle = '#d9a94c'; g.fillRect(cx - 1, y0 - 4, 2, y1 - y0 + 8);
+  g.font = '12px Pretendard Variable, sans-serif'; g.fillStyle = '#5db4f2'; g.textAlign = 'left'; g.fillText('← 빠름', 10, 11);
+  g.fillStyle = '#f2705f'; g.textAlign = 'right'; g.fillText('늦음 →', W - 10, 11);
+  g.fillStyle = '#8d9bb5'; g.textAlign = 'center';
+  g.fillText('−' + range, X(-range) + 12, H - 3); g.fillText('0', cx, H - 3); g.fillText('+' + range, X(range) - 12, H - 3);
+  if (!sess) return;
+  const rec = sess.hits.slice(-16);
+  rec.forEach((h, i) => {
+    const age = rec.length - 1 - i;
+    g.globalAlpha = Math.max(0.15, 1 - age / 16);
+    g.fillStyle = COL[h.cat];
+    const x = X(h.err), last = age === 0;
+    g.fillRect(x - (last ? 3 : 1.5), y0 + (last ? 0 : 6), last ? 6 : 3, (y1 - y0) - (last ? 0 : 12));
+  });
+  g.globalAlpha = 1;
+  if (rec.length >= 4) {
+    const [m] = meanSd(rec.map(h => h.err)); const x = X(m);
+    g.fillStyle = '#eef1f4'; g.beginPath(); g.moveTo(x, y1 + 1); g.lineTo(x - 6, y1 + 9); g.lineTo(x + 6, y1 + 9); g.closePath(); g.fill();
+  }
+}
+
+function drawBeatDots() {
+  const box = $('beatDots');
+  if (box.children.length !== (T.running ? T.bpb : S.beats)) {
+    box.innerHTML = '';
+    for (let i = 0; i < (T.running ? T.bpb : S.beats); i++) { const d = document.createElement('i'); if (i === 0) d.className = 'down'; box.appendChild(d); }
+  }
+  if (!T.running) { [...box.children].forEach(d => d.classList.remove('on')); box.classList.remove('muted'); return; }
+  const now = ctx.currentTime - offsetSec() * (T.kind === 'calib' ? 0 : 1);
+  let cur = null;
+  for (let k = T.beats.length - 1; k >= 0; k--) if (T.beats[k].t <= now) { cur = T.beats[k]; break; }
+  [...box.children].forEach((d, i) => d.classList.toggle('on', !!cur && i === cur.beatInBar && now - cur.t < Math.min(0.25, cur.beatDur * 0.6)));
+  box.classList.toggle('muted', !!cur && cur.muted);
+}
+
+function loop() {
+  if ($('lane').offsetParent) { drawLane(); drawGauge(); drawBeatDots(); }
+  if (T.running && T.kind === 'calib') drawCal();
+  requestAnimationFrame(loop);
+}
+
+/* =========================================================
+   6. 연습 시작 / 종료
+   ========================================================= */
+async function toggleStart() {
+  if (T.running && T.kind === 'practice') { endPractice(); return; }
+  if (T.running) return;
+  try { await ensureAudio(); } catch (e) { micError(e); return; }
+  pushDetector();
+  newSession(); laneHits = []; window.__drum.hits = [];
+  ['stMean', 'stSd', 'stAcc'].forEach(id => $(id).textContent = '—'); $('stCount').textContent = '0';
+  $('rdNum').textContent = '—'; $('rdNum').className = 'rd-num'; $('rdText').textContent = S.countIn ? '세는 중' : '시작'; $('rdText').className = 'rd-text'; $('rdUnit').textContent = ''; $('trend').textContent = '';
+  startTransport('practice');
+  $('laneHint').hidden = true;
+  ['sigSel', 'judgeSel'].forEach(id => $(id).disabled = true);
+  $('startBtn').textContent = '정지'; $('startBtn').classList.add('stop');
+}
+
+function endPractice() {
+  stopTransport();
+  $('startBtn').textContent = '시작'; $('startBtn').classList.remove('stop');
+  $('laneHint').hidden = false;
+  ['sigSel', 'judgeSel'].forEach(id => $(id).disabled = false);
+  drawLane();
+  if (sess && sess.hits.length >= 8) {
+    const rec = packSession(sess);
+    HIST.unshift(rec); saveHist(); renderHist();
+    openSummary(rec);
+  } else if (sess) toast('8타 이상 쳐야 기록이 남습니다');
+}
+
+function packSession(s) {
+  return {
+    date: s.start, bpm: s.bpm, beats: s.beats, judgeSub: s.judgeSub, gap: s.gap, diff: s.diff, profile: s.profile,
+    errs: s.hits.slice(0, 3000).map(h => Math.round(h.err * 10) / 10),
+    muted: s.hits.slice(0, 3000).map(h => h.muted ? 1 : 0),
+    cats: countCats(s), misses: s.misses.length, extras: s.extras
+  };
+}
+function countCats(s) {
+  const c = { perfect: 0, good: 0, early: 0, late: 0 };
+  s.hits.forEach(h => c[h.cat]++);
+  return c;
+}
+
+/* =========================================================
+   7. 결과 요약
+   ========================================================= */
+const SUBNAME = { 1: '4분', 2: '8분', 3: '셋잇단', 4: '16분' };
+function openSummary(r) {
+  const n = r.errs.length, total = n + r.misses;
+  const ok = r.cats.perfect + r.cats.good;
+  $('sumAcc').textContent = total ? Math.round(ok / total * 100) + '%' : '—';
+  const d = new Date(r.date);
+  $('sumMeta').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}  ${r.bpm} BPM  ${SUBNAME[r.judgeSub]}음표  ${r.profile}`;
+  const parts = [['perfect', '완벽'], ['good', '좋음'], ['early', '빠름'], ['late', '늦음'], ['miss', '놓침']];
+  const vals = { ...r.cats, miss: r.misses };
+  $('sumBar').innerHTML = parts.map(([k]) => vals[k] ? `<i style="width:${vals[k] / total * 100}%;background:${COL[k]}"></i>` : '').join('');
+  $('sumLegend').innerHTML = parts.filter(([k]) => k !== 'miss' || r.misses).map(([k, l]) => `<span><span class="dot" style="background:${COL[k]}"></span>${l}<b>${vals[k]}</b></span>`).join('');
+  $('sumNotes').innerHTML = analyze(r).map(t => `<li>${t}</li>`).join('');
+  $('sheet').classList.add('on');
+  requestAnimationFrame(() => drawSummaryChart(r));
+}
+
+function analyze(r) {
+  const e = r.errs, out = [];
+  const [m, sd] = meanSd(e);
+  out.push(`평균 오차 ${signed(m)}ms, 흔들림 ±${Math.round(sd)}ms`);
+  if (m > 8) out.push('전체적으로 박보다 늦게 치는 편입니다.');
+  else if (m < -8) out.push('전체적으로 박보다 빨리 치는 편입니다.');
+  else out.push('박의 중심은 잘 맞습니다.');
+  if (e.length >= 24) {
+    const third = Math.floor(e.length / 3);
+    const a = meanSd(e.slice(0, third))[0], b = meanSd(e.slice(-third))[0];
+    if (b - a > 8) out.push(`뒤로 갈수록 늦어졌습니다 (처음 ${signed(a)}ms → 끝 ${signed(b)}ms).`);
+    else if (a - b > 8) out.push(`뒤로 갈수록 빨라졌습니다 (처음 ${signed(a)}ms → 끝 ${signed(b)}ms).`);
+    else out.push('처음부터 끝까지 템포를 고르게 유지했습니다.');
+  }
+  if (r.gap !== 'off') {
+    const on = e.filter((_, i) => !r.muted[i]), off = e.filter((_, i) => r.muted[i]);
+    if (on.length >= 4 && off.length >= 4) {
+      const mo = meanSd(on)[0], mf = meanSd(off)[0];
+      const diff = mf - mo;
+      let t = `메트로놈이 꺼진 마디: 평균 ${signed(mf)}ms (켜진 마디 ${signed(mo)}ms). `;
+      t += diff > 8 ? '혼자 칠 때 박자가 밀립니다.' : diff < -8 ? '혼자 칠 때 박자를 당깁니다.' : '혼자서도 템포를 잘 유지했습니다.';
+      out.push(t);
+    }
+  }
+  if (r.misses) out.push(`놓친 격자 ${r.misses}개`);
+  if (r.extras) out.push(`한 격자에 두 번 들어온 소리 ${r.extras}번 (플램이나 잔향일 수 있음)`);
+  return out;
+}
+
+function drawSummaryChart(r) {
+  const c = $('sumChart'); const [g, W, H] = fitCanvas(c);
+  g.clearRect(0, 0, W, H);
+  const e = r.errs; if (!e.length) return;
+  const w = WIN[r.diff] || WIN.normal;
+  const lim = Math.max(w[1] * 2, Math.min(150, Math.ceil(Math.max(...e.map(Math.abs)) / 10) * 10));
+  const pl = 34, pr = 10, pt = 12, pb = 18;
+  const X = i => pl + (e.length === 1 ? 0 : i / (e.length - 1)) * (W - pl - pr);
+  const Y = v => pt + (1 - (Math.max(-lim, Math.min(lim, v)) + lim) / (2 * lim)) * (H - pt - pb);
+  // 무음 마디 음영
+  r.muted.forEach((mu, i) => { if (mu) { g.fillStyle = 'rgba(93,180,242,.08)'; g.fillRect(X(i) - 2, pt, 4, H - pt - pb); } });
+  g.fillStyle = 'rgba(184,196,212,.10)'; g.fillRect(pl, Y(w[1]), W - pl - pr, Y(-w[1]) - Y(w[1]));
+  g.fillStyle = 'rgba(217,169,76,.18)'; g.fillRect(pl, Y(w[0]), W - pl - pr, Y(-w[0]) - Y(w[0]));
+  g.strokeStyle = '#d9a94c'; g.lineWidth = 1; g.beginPath(); g.moveTo(pl, Y(0)); g.lineTo(W - pr, Y(0)); g.stroke();
+  g.fillStyle = '#8d9bb5'; g.font = '11px Pretendard Variable, sans-serif'; g.textAlign = 'right';
+  g.fillText('늦음 +' + lim, pl + 28, pt + 8); g.fillText('0', pl - 4, Y(0) + 4); g.fillText('빠름 −' + lim, pl + 28, H - 4);
+  e.forEach((v, i) => {
+    const cat = classifyWith(v, w);
+    g.fillStyle = COL[cat]; g.globalAlpha = 0.75; g.beginPath(); g.arc(X(i), Y(v), 2.6, 0, Math.PI * 2); g.fill();
+  });
+  g.globalAlpha = 1;
+  // 이동 평균선
+  const k = Math.max(4, Math.min(16, Math.floor(e.length / 8)));
+  g.strokeStyle = '#eef1f4'; g.lineWidth = 2; g.beginPath();
+  for (let i = 0; i < e.length; i++) {
+    const s = e.slice(Math.max(0, i - k + 1), i + 1); const m = s.reduce((a, b) => a + b, 0) / s.length;
+    i ? g.lineTo(X(i), Y(m)) : g.moveTo(X(i), Y(m));
+  }
+  g.stroke();
+}
+function classifyWith(v, w) { const a = Math.abs(v); return a <= w[0] ? 'perfect' : a <= w[1] ? 'good' : v < 0 ? 'early' : 'late'; }
+
+/* =========================================================
+   8. 보정 (메트로놈에 맞춰 16번 치기 → 중앙값)
+   ========================================================= */
+const CAL_BPM = 80, CAL_N = 16;
+let cal = null;
+async function startCalib() {
+  if (T.running) { if (T.kind === 'calib') { stopTransport(); cal = null; $('calStart').textContent = '보정 시작'; $('calProg').textContent = '취소됨'; } return; }
+  try { await ensureAudio(); } catch (e) { micError(e); return; }
+  onsetNode.port.postMessage({ refr: 0.12 });
+  cal = { offs: [], used: new Set() };
+  startTransport('calib');
+  $('calStart').textContent = '취소';
+  $('calBig').textContent = '—';
+  $('calProg').textContent = '4번 세고 시작합니다';
+}
+function calibHit(tRaw) {
+  // 소리가 늦게 들리므로 오차는 대부분 양수: 바로 앞 클릭에 대응시킴
+  let b = null;
+  for (const x of T.beats) if (!x.inCount && x.t <= tRaw + 0.15) b = x;
+  if (!b || cal.used.has(b.i)) return;
+  const o = tRaw - b.t; if (o <= -0.15 || o >= 0.6) return;
+  cal.used.add(b.i); cal.offs.push(o * 1000);
+  $('calProg').textContent = `${cal.offs.length} / ${CAL_N}`;
+}
+function finishCalib() {
+  stopTransport(); pushDetector();
+  $('calStart').textContent = '다시 보정';
+  const o = cal.offs.slice(2); // 처음 두 번은 적응 구간이라 제외
+  if (o.length < 8) { $('calProg').textContent = `감지된 타격이 ${cal.offs.length}번뿐입니다. 감도를 확인하고 다시 해 주세요.`; cal = null; return; }
+  const sorted = [...o].sort((a, b) => a - b), med = sorted[Math.floor(sorted.length / 2)];
+  const mad = [...o.map(v => Math.abs(v - med))].sort((a, b) => a - b)[Math.floor(o.length / 2)] || 1;
+  const inl = o.filter(v => Math.abs(v - med) <= Math.max(3 * mad, 15));
+  const [m, sd] = meanSd(inl);
+  const p = prof(); p.offset = Math.round(m); save(); renderProfiles();
+  $('calBig').textContent = p.offset + 'ms';
+  $('calProg').textContent = sd > 20 ? `저장했지만 흔들림이 ±${Math.round(sd)}ms로 큽니다. 한 번 더 해 보길 권합니다.` : `저장됨. 흔들림 ±${Math.round(sd)}ms`;
+  cal.done = { m, list: o };
+}
+function drawCal() {
+  const c = $('calLane'); const [g, W, H] = fitCanvas(c);
+  g.clearRect(0, 0, W, H);
+  if (!cal) return;
+  const X = ms => 10 + (ms + 100) / 600 * (W - 20);
+  g.fillStyle = '#8d9bb5'; g.font = '11px Pretendard Variable, sans-serif'; g.textAlign = 'center';
+  for (let ms = 0; ms <= 400; ms += 100) { g.fillRect(X(ms), H - 18, 1, 6); g.fillText(ms + 'ms', X(ms), H - 2); }
+  cal.offs.forEach((v, i) => { g.fillStyle = i < 2 ? '#8d9bb5' : '#d9a94c'; g.beginPath(); g.arc(X(v), 30 + (i % 4) * 8, 5, 0, Math.PI * 2); g.fill(); });
+  // 다음 클릭 위치 표시
+  const now = ctx.currentTime, B = T.beats;
+  const last = B.length ? B[B.length - 1] : null;
+  if (last && now - last.t < 0.12) { g.fillStyle = 'rgba(238,241,244,.5)'; g.fillRect(X(0) - 2, 10, 4, H - 34); }
+}
+
+/* =========================================================
+   9. UI 연결
+   ========================================================= */
+function setBpm(v) {
+  S.bpm = Math.max(40, Math.min(240, Math.round(v)));
+  $('bpmOut').textContent = S.bpm; $('bpmRange').value = S.bpm; save(); pushDetector();
+}
+function holdRepeat(btn, fn) {
+  let t1, t2;
+  const stop = () => { clearTimeout(t1); clearInterval(t2); };
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); fn(); t1 = setTimeout(() => { t2 = setInterval(fn, 70); }, 400); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => btn.addEventListener(ev, stop));
+}
+holdRepeat($('bpmDown'), () => setBpm(S.bpm - 1));
+holdRepeat($('bpmUp'), () => setBpm(S.bpm + 1));
+$('bpmRange').addEventListener('input', e => setBpm(+e.target.value));
+let taps = [];
+$('tapBtn').addEventListener('click', () => {
+  const t = performance.now(); taps = taps.filter(x => t - x < 2500); taps.push(t);
+  if (taps.length >= 3) { const d = (taps[taps.length - 1] - taps[0]) / (taps.length - 1); setBpm(60000 / d); }
+});
+$('sigSel').addEventListener('change', e => { S.beats = +e.target.value; save(); });
+$('judgeSel').addEventListener('change', e => { S.judgeSub = +e.target.value; save(); pushDetector(); });
+$('clickSel').addEventListener('change', e => { S.clickSub = +e.target.value; save(); });
+$('gapSel').addEventListener('change', e => { S.gap = e.target.value; save(); });
+$('allNotesChk').addEventListener('change', e => { S.allNotes = e.target.checked; save(); });
+$('profSel').addEventListener('change', e => { S.active = e.target.value; save(); renderProfiles(); });
+$('startBtn').addEventListener('click', toggleStart);
+
+document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+function showTab(name) {
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.dataset.view === name));
+  if (T.running && T.kind === 'practice' && name !== 'practice') endPractice();
+  if (T.running && T.kind === 'calib' && name !== 'calib') { stopTransport(); cal = null; $('calStart').textContent = '보정 시작'; }
+}
+
+/* 보정 탭 */
+function renderProfiles() {
+  const ul = $('plist'); ul.innerHTML = '';
+  S.profiles.forEach(p => {
+    const li = document.createElement('li');
+    li.innerHTML = `<input type="radio" name="prof" ${p.id === S.active ? 'checked' : ''} aria-label="${esc(p.name)} 선택">
+      <div><div class="pname">${esc(p.name)}</div><div class="pmeta">${TYPE_LABEL[p.type]}</div></div>
+      <div class="pval ${p.offset == null ? 'none' : ''}">${p.offset == null ? '보정 필요' : p.offset + 'ms'}</div>
+      ${S.profiles.length > 1 ? '<button class="btn small" data-del>삭제</button>' : ''}`;
+    li.querySelector('input').addEventListener('change', () => { S.active = p.id; save(); renderProfiles(); });
+    const del = li.querySelector('[data-del]');
+    if (del) del.addEventListener('click', () => { if (!confirm(`'${p.name}' 장치를 지울까요?`)) return; S.profiles = S.profiles.filter(x => x !== p); if (S.active === p.id) S.active = S.profiles[0].id; save(); renderProfiles(); });
+    ul.appendChild(li);
+  });
+  const sel = $('profSel');
+  sel.innerHTML = S.profiles.map(p => `<option value="${p.id}" ${p.id === S.active ? 'selected' : ''}>${esc(p.name)} ${p.offset == null ? '(보정 필요)' : p.offset + 'ms'}</option>`).join('');
+  $('calName').textContent = prof().name;
+  $('btNote').hidden = prof().type !== 'bt';
+  const w = $('calWarn');
+  if (prof().offset == null) { w.hidden = false; w.innerHTML = `‘${esc(prof().name)}’은 아직 보정하지 않아 판정이 한쪽으로 치우칠 수 있습니다. <button id="goCal">보정하러 가기</button>`; $('goCal').onclick = () => showTab('calib'); }
+  else if (prof().type === 'speaker') { w.hidden = false; w.textContent = '스피커 소리가 마이크에 들어가 타격으로 잡힐 수 있습니다. 클릭 음량을 줄이거나 감도를 낮추세요.'; }
+  else w.hidden = true;
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+$('addProf').addEventListener('click', () => {
+  const name = $('newName').value.trim(); if (!name) { $('newName').focus(); return; }
+  const p = { id: 'p' + Date.now(), name, type: $('newType').value, offset: null };
+  S.profiles.push(p); S.active = p.id; save(); $('newName').value = ''; renderProfiles(); toast(`‘${name}’ 추가됨. 이제 보정하세요`);
+});
+$('calStart').addEventListener('click', startCalib);
+document.querySelectorAll('[data-adj]').forEach(b => b.addEventListener('click', () => {
+  const p = prof(); p.offset = (p.offset == null ? Math.round(offsetSec() * 1000) : p.offset) + (+b.dataset.adj);
+  save(); renderProfiles(); $('calBig').textContent = p.offset + 'ms';
+}));
+
+/* 설정 탭 */
+function renderDiff() { document.querySelectorAll('#diffSeg button').forEach(b => b.classList.toggle('on', b.dataset.diff === S.diff)); }
+document.querySelectorAll('#diffSeg button').forEach(b => b.addEventListener('click', () => { S.diff = b.dataset.diff; save(); renderDiff(); }));
+const mapMeter = p => Math.max(0, Math.min(1, (Math.log10(Math.max(p, 1e-4)) + 3.2) / 3.2));
+function placeThr() { $('meterThr').style.left = (mapMeter(sensToThr(S.sens)) * 100) + '%'; }
+let lastPeak = 0, autoProbe = null;
+function meter(p) {
+  lastPeak = p;
+  if (autoProbe) autoProbe.push(p);
+  const f = $('meterFill'); f.style.width = (mapMeter(p) * 100) + '%';
+}
+function meterHit() { const f = $('meterFill'); f.classList.add('hit'); clearTimeout(meterHit._t); meterHit._t = setTimeout(() => f.classList.remove('hit'), 150); }
+$('sensRange').addEventListener('input', e => { S.sens = +e.target.value; save(); placeThr(); pushDetector(); });
+$('micOn').addEventListener('click', async () => { try { await ensureAudio(); $('micOn').textContent = '마이크 켜짐'; } catch (e) { micError(e); } });
+$('autoSens').addEventListener('click', async () => {
+  try { await ensureAudio(); } catch (e) { micError(e); return; }
+  autoProbe = []; $('autoSens').textContent = '조용히…';
+  setTimeout(() => {
+    const noise = Math.max(...autoProbe, 0.0005); autoProbe = null;
+    const thr = Math.max(noise * 4, 0.004);
+    S.sens = thrToSens(thr); save(); $('sensRange').value = S.sens; placeThr(); pushDetector();
+    $('autoSens').textContent = '조용히 2초 두고 자동 설정'; toast('감도를 맞췄습니다. 몇 번 쳐서 확인하세요');
+  }, 2000);
+});
+async function fillInputs() {
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput');
+    const sel = $('inputSel');
+    sel.innerHTML = '<option value="">기본 마이크</option>' + devs.filter(d => d.deviceId && d.deviceId !== 'default').map((d, i) => `<option value="${d.deviceId}" ${d.deviceId === S.inputId ? 'selected' : ''}>${esc(d.label || '마이크 ' + (i + 1))}</option>`).join('');
+  } catch (e) {}
+}
+$('inputSel').addEventListener('change', async e => { S.inputId = e.target.value; save(); if (ctx) { try { await openMic(); toast('입력 마이크를 바꿨습니다'); } catch (err) { micError(err); } } });
+$('volRange').addEventListener('input', e => { S.clickVol = +e.target.value; save(); if (clickBus) clickBus.gain.value = S.clickVol; });
+$('countInChk').addEventListener('change', e => { S.countIn = e.target.checked; save(); });
+$('wakeChk').addEventListener('change', e => { S.wake = e.target.checked; save(); });
+$('resetAll').addEventListener('click', () => { if (!confirm('보정값, 설정, 연습 기록이 모두 지워집니다.')) return; localStorage.removeItem(KEY); localStorage.removeItem(HKEY); location.reload(); });
+
+/* 기록 탭 */
+function renderHist() {
+  const ul = $('histList');
+  if (!HIST.length) { ul.innerHTML = '<li class="empty" style="display:block;border:0">아직 기록이 없습니다.<br>연습을 마치면 결과가 여기에 쌓입니다.</li>'; return; }
+  ul.innerHTML = '';
+  HIST.forEach(r => {
+    const total = r.errs.length + r.misses, ok = r.cats.perfect + r.cats.good;
+    const [m, sd] = meanSd(r.errs); const d = new Date(r.date);
+    const li = document.createElement('li');
+    li.innerHTML = `<div><div class="hmain">${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}  ${r.bpm} BPM</div>
+      <div class="hsub">평균 ${signed(m)}ms  흔들림 ±${Math.round(sd)}ms  ${r.errs.length}타</div></div>
+      <div class="hacc">${total ? Math.round(ok / total * 100) : 0}%</div>`;
+    li.style.cursor = 'pointer';
+    li.addEventListener('click', () => openSummary(r));
+    ul.appendChild(li);
+  });
+}
+$('clearHist').addEventListener('click', () => { if (!HIST.length || !confirm('연습 기록을 모두 지울까요?')) return; HIST = []; saveHist(); renderHist(); });
+$('sheetClose').addEventListener('click', () => $('sheet').classList.remove('on'));
+$('sheet').addEventListener('click', e => { if (e.target.id === 'sheet') $('sheet').classList.remove('on'); });
+
+/* 기타 */
+let wakeLock = null;
+async function wake(on) {
+  try {
+    if (on && S.wake && 'wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && T.running) { if (T.kind === 'practice') endPractice(); else { stopTransport(); cal = null; $('calStart').textContent = '보정 시작'; } }
+});
+function micError(e) {
+  console.error(e);
+  const msg = (e && e.name === 'NotAllowedError') ? '마이크 권한이 꺼져 있습니다. 브라우저 주소창의 자물쇠 아이콘에서 마이크를 허용하세요.'
+    : !window.isSecureContext ? '마이크는 https 주소에서만 켜집니다.'
+    : '마이크를 켜지 못했습니다: ' + (e && e.message || e);
+  alert(msg);
+}
+
+/* 초기화 */
+$('sigSel').value = S.beats; $('judgeSel').value = S.judgeSub; $('clickSel').value = S.clickSub; $('gapSel').value = S.gap;
+$('allNotesChk').checked = S.allNotes; $('sensRange').value = S.sens; $('volRange').value = S.clickVol;
+$('countInChk').checked = S.countIn; $('wakeChk').checked = S.wake;
+setBpm(S.bpm); renderDiff(); renderProfiles(); renderHist(); placeThr();
+requestAnimationFrame(loop);
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
