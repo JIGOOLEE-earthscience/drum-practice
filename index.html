@@ -178,6 +178,44 @@ nav.tabs button.on{color:var(--accent);box-shadow:var(--press-s)}
 .notes{margin:0;padding-left:18px;line-height:1.75;font-size:15px}
 .toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:20px;font-weight:700;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
 .toast.on{opacity:1}
+/* 악보 탭 */
+.view[data-view=score].on{display:flex;flex-direction:column;height:100%}
+.score-top{display:flex;gap:10px;align-items:center;margin:4px 0 12px}
+.score-top select{flex:1;min-width:0;font-size:14px}
+.score-ctrl{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px;font-size:13px;color:var(--muted)}
+.score-ctrl select{height:36px;font-size:13px;padding-left:12px;padding-right:30px;background-position:right 10px center}
+.score-ctrl .seg{padding:4px;border-radius:18px}
+.score-ctrl .seg button{height:30px;padding:0 12px;white-space:nowrap;border-radius:14px;font-size:13px}
+.mini-toggle{display:flex;align-items:center;gap:6px}
+.mini-toggle input{-webkit-appearance:none;appearance:none;width:40px;height:24px;border-radius:12px;box-shadow:var(--press-s);position:relative;margin:0}
+.mini-toggle input::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:var(--bg);box-shadow:2px 2px 4px var(--lo),-1px -1px 3px var(--hi);transition:transform .15s}
+.mini-toggle input:checked{background:var(--accent)}
+.mini-toggle input:checked::after{transform:translateX(16px)}
+.score-stage{position:relative;flex:1;min-height:240px;border-radius:22px;box-shadow:var(--press);overflow:hidden}
+.staff-wrap{position:absolute;inset:0;overflow-y:auto;padding:6px 6px 40px;background:#eef2f6}
+.staff-wrap[hidden],#scoreLane[hidden]{display:none}
+.staff-wrap svg{display:block}
+#scoreLane{position:absolute;inset:0;width:100%;height:100%}
+.score-foot{display:flex;align-items:center;gap:14px;margin-top:14px}
+.sd-box{display:flex;align-items:baseline;gap:8px;flex:1;min-width:0}
+.sd-num{font-size:40px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;min-width:70px;text-align:right}
+.sd-text{font-size:16px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sd-acc{font-size:13px;color:var(--muted);text-align:center}
+.sd-acc b{display:block;font-size:22px;color:var(--ink)}
+.score-foot .start{position:static;width:130px;height:54px;font-size:19px}
+/* 가로 화면: 악보를 넓게 */
+@media (orientation:landscape) and (max-height:560px){
+  .app{max-width:none}
+  .brand{display:none}
+  main{padding-top:10px}
+  nav.tabs{margin:0 10px 6px;padding:4px;border-radius:20px}
+  nav.tabs button{height:34px}
+  .score-top{margin-bottom:8px}
+  .score-stage{min-height:150px}
+  .score-foot{margin-top:8px}
+  .sd-num{font-size:30px}
+  .score-foot .start{height:44px}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -263,6 +301,35 @@ nav.tabs button.on{color:var(--accent);box-shadow:var(--press-s)}
 
       <button id="startBtn" class="start">시작</button>
       <div id="calWarn" class="warn" hidden></div>
+    </section>
+
+    <!-- 악보 -->
+    <section class="view" data-view="score">
+      <div class="score-top">
+        <select id="scoreSel" aria-label="악보 고르기"></select>
+        <button class="btn small" id="importBtn">불러오기</button>
+        <input type="file" id="importFile" accept=".json,application/json" hidden>
+      </div>
+      <div class="score-ctrl">
+        <div class="seg" id="viewSeg"><button data-v="staff">악보</button><button data-v="lane">줄</button></div>
+        <select id="speedSel" aria-label="속도">
+          <option value="0.5">50%</option><option value="0.6">60%</option><option value="0.7">70%</option><option value="0.8">80%</option><option value="0.9">90%</option><option value="1">100%</option><option value="1.1">110%</option>
+        </select>
+        <span id="speedInfo"></span>
+        <select id="fromSel" aria-label="시작 마디"></select>
+        <span>~</span>
+        <select id="toSel" aria-label="끝 마디"></select>
+        <label class="mini-toggle">반복<input type="checkbox" id="loopChk"></label>
+      </div>
+      <div class="score-stage" id="scoreStage">
+        <div class="staff-wrap" id="staffWrap"><div id="staffHost"></div></div>
+        <canvas id="scoreLane" hidden></canvas>
+      </div>
+      <div class="score-foot">
+        <div class="sd-box" aria-live="polite"><div id="sdNum" class="sd-num">—</div><div id="sdText" class="sd-text">대기 중</div></div>
+        <div class="sd-acc"><b id="sdAcc">—</b>정확도</div>
+        <button class="start" id="scoreStart">시작</button>
+      </div>
     </section>
 
     <!-- 보정 -->
@@ -362,6 +429,7 @@ nav.tabs button.on{color:var(--accent);box-shadow:var(--press-s)}
 
   <nav class="tabs">
     <button data-tab="practice" class="on">연습</button>
+    <button data-tab="score">악보</button>
     <button data-tab="calib">보정</button>
     <button data-tab="settings">설정</button>
     <button data-tab="history">기록</button>
@@ -383,6 +451,7 @@ nav.tabs button.on{color:var(--accent);box-shadow:var(--press-s)}
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="vexflow.js"></script>
 <script>
 'use strict';
 /* =========================================================
@@ -392,7 +461,7 @@ const KEY = 'drumpractice.settings.v1';
 const HKEY = 'drumpractice.history.v1';
 const DEF = {
   bpm: 100, beats: 4, clickSub: 1, judgeSub: 2, allNotes: false, gap: 'off',
-  diff: 'normal', sens: 55, inputId: '', clickVol: 0.8, countIn: true, wake: true,
+  diff: 'normal', sens: 55, scoreSpeed: 1, scoreLoop: true, scoreView: 'staff', scoreId: 'builtin-8beat', inputId: '', clickVol: 0.8, countIn: true, wake: true,
   profiles: [{ id: 'spk', name: '폰 스피커', type: 'speaker', offset: null }, { id: 'p1', name: '유선 이어폰', type: 'wired', offset: null }],
   active: 'spk'
 };
@@ -584,14 +653,15 @@ function tick() {
   }
   while (T.clicks.length && T.clicks[0] < ctx.currentTime - 3) T.clicks.shift();
   if (T.kind === 'practice' && S.allNotes) checkMisses();
+  if (T.kind === 'score' && SC.cursor) scoreMisses();
   if (T.kind === 'calib' && T.endAt != null && ctx.currentTime > T.endAt) finishCalib();
 }
 
 function startTransport(kind) {
   T.kind = kind; T.running = true;
-  T.bpm = kind === 'calib' ? CAL_BPM : S.bpm;
-  T.bpb = kind === 'calib' ? 4 : S.beats;
-  T.countIn = (kind === 'calib' || S.countIn) ? T.bpb : 0;
+  T.bpm = kind === 'calib' ? CAL_BPM : kind === 'score' ? scoreBpm() : S.bpm;
+  T.bpb = kind === 'calib' ? 4 : kind === 'score' ? SC.score.beats : S.beats;
+  T.countIn = (kind !== 'practice' || S.countIn) ? T.bpb : 0;
   T.beats = []; T.clicks = []; T.idx = 0; T.matched = new Set(); T.missCursor = 0; T.endAt = null;
   T.nextT = ctx.currentTime + 0.2;
   T.startT = T.nextT;
@@ -646,8 +716,9 @@ function onDetector(e) {
   window.__drum.onsets.push(m.t);
   if (!T.running) return;
   if (T.kind === 'calib') calibHit(m.t, m.peak);
-  else if (!isBleed(m.t, m.peak)) practiceHit(m.t);
-  else window.__drum.bleeds = (window.__drum.bleeds || 0) + 1;
+  else if (isBleed(m.t, m.peak)) window.__drum.bleeds = (window.__drum.bleeds || 0) + 1;
+  else if (T.kind === 'score') scoreHit(m.t);
+  else practiceHit(m.t);
 }
 
 /* 폰 스피커로 메트로놈을 틀면 클릭 소리가 마이크로 다시 들어옴.
@@ -862,6 +933,7 @@ function drawBeatDots() {
 function loop() {
   if ($('lane').offsetParent) { drawLane(); drawGauge(); drawBeatDots(); }
   if (T.running && T.kind === 'calib') drawCal();
+  scoreFrame();
   requestAnimationFrame(loop);
 }
 
@@ -900,7 +972,8 @@ function packSession(s) {
     date: s.start, bpm: s.bpm, beats: s.beats, judgeSub: s.judgeSub, gap: s.gap, diff: s.diff, profile: s.profile,
     errs: s.hits.slice(0, 3000).map(h => Math.round(h.err * 10) / 10),
     muted: s.hits.slice(0, 3000).map(h => h.muted ? 1 : 0),
-    cats: countCats(s), misses: s.misses.length, extras: s.extras
+    cats: countCats(s), misses: s.misses.length, extras: s.extras,
+    ...(s.title ? { title: s.title, meas: s.hits.slice(0, 3000).map(h => h.m), missMeas: s.misses.map(m => m.m) } : {})
   };
 }
 function countCats(s) {
@@ -918,7 +991,7 @@ function openSummary(r) {
   const ok = r.cats.perfect + r.cats.good;
   $('sumAcc').textContent = total ? Math.round(ok / total * 100) + '%' : '—';
   const d = new Date(r.date);
-  $('sumMeta').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}  ${r.bpm} BPM  ${SUBNAME[r.judgeSub]}음표  ${r.profile}`;
+  $('sumMeta').textContent = `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}  ${r.bpm} BPM  ${r.title ? r.title : SUBNAME[r.judgeSub] + '음표'}  ${r.profile}`;
   const parts = [['perfect', '완벽'], ['good', '좋음'], ['early', '빠름'], ['late', '늦음'], ['miss', '놓침']];
   const vals = { ...r.cats, miss: r.misses };
   $('sumBar').innerHTML = parts.map(([k]) => vals[k] ? `<i style="width:${vals[k] / total * 100}%;background:${COL[k]}"></i>` : '').join('');
@@ -952,7 +1025,16 @@ function analyze(r) {
       out.push(t);
     }
   }
-  if (r.misses) out.push(`놓친 격자 ${r.misses}개`);
+  if (r.meas) {
+    const bad = new Map();
+    const add = (m, k) => { if (!bad.has(m)) bad.set(m, { miss: 0, off: 0 }); bad.get(m)[k]++; };
+    r.missMeas.forEach(m => add(m, 'miss'));
+    r.errs.forEach((v, i) => { const c = classifyWith(v, WIN[r.diff] || WIN.normal); if (c === 'early' || c === 'late') add(r.meas[i], 'off'); });
+    const top = [...bad.entries()].sort((a, b) => (b[1].miss * 2 + b[1].off) - (a[1].miss * 2 + a[1].off)).slice(0, 3);
+    if (top.length) out.push('많이 틀린 마디: ' + top.map(([m, v]) => `${m + 1}마디(${[v.miss ? '놓침 ' + v.miss : '', v.off ? '빠름·늦음 ' + v.off : ''].filter(Boolean).join(', ')})`).join(', '));
+    else out.push('틀린 마디가 없습니다.');
+  }
+  if (r.misses) out.push(`놓친 ${r.meas ? '노트' : '격자'} ${r.misses}개`);
   if (r.extras) out.push(`한 격자에 두 번 들어온 소리 ${r.extras}번 (플램이나 잔향일 수 있음)`);
   return out;
 }
@@ -1119,6 +1201,8 @@ function showTab(name) {
   document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.dataset.view === name));
   if (T.running && T.kind === 'practice' && name !== 'practice') endPractice();
+  if (T.running && T.kind === 'score' && name !== 'score') endScore();
+  if (name === 'score') renderScoreView(!SC.layout);
   if (T.running && T.kind === 'calib' && name !== 'calib') { stopTransport(); cal = null; $('calStart').textContent = '보정 시작'; }
 }
 
@@ -1214,7 +1298,7 @@ function renderHist() {
     const [m, sd] = meanSd(r.errs); const d = new Date(r.date);
     const li = document.createElement('li');
     li.innerHTML = `<div><div class="hmain">${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}  ${r.bpm} BPM</div>
-      <div class="hsub">평균 ${signed(m)}ms  흔들림 ±${Math.round(sd)}ms  ${r.errs.length}타</div></div>
+      ${r.title ? `<div class="hsub">${esc(r.title)}</div>` : ''}<div class="hsub">평균 ${signed(m)}ms  흔들림 ±${Math.round(sd)}ms  ${r.errs.length}타</div></div>
       <div class="hacc">${total ? Math.round(ok / total * 100) : 0}%</div>`;
     li.style.cursor = 'pointer';
     li.addEventListener('click', () => openSummary(r));
@@ -1234,7 +1318,7 @@ async function wake(on) {
   } catch (e) {}
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && T.running) { if (T.kind === 'practice') endPractice(); else { stopTransport(); cal = null; $('calStart').textContent = '보정 시작'; } }
+  if (document.hidden && T.running) { if (T.kind === 'practice') endPractice(); else if (T.kind === 'score') endScore(); else { stopTransport(); cal = null; $('calStart').textContent = '보정 시작'; } }
 });
 function micError(e) {
   console.error(e);
@@ -1244,11 +1328,485 @@ function micError(e) {
   alert(msg);
 }
 
+/* =========================================================
+   10. 2단계: 악보 따라치기
+   악보 데이터: { title, bpm, beats, measures: [{ notes: [{ t, i, a, s }] }] }
+   t = 마디 안 위치 (4분음표 = 24틱), i = 악기 코드,
+   a = 주법(> 악센트, o 오픈 하이햇), s = 스티킹(R/L)
+   ========================================================= */
+const TPQ = 24;
+const INST = {
+  C:  { name: '크래시', key: 'a/5', x: true, row: 0, up: true },
+  R:  { name: '라이드', key: 'f/5', x: true, row: 0, up: true },
+  HH: { name: '하이햇', key: 'g/5', x: true, row: 1, up: true },
+  S:  { name: '스네어', key: 'c/5', x: false, row: 2, up: true },
+  T1: { name: '하이탐', key: 'e/5', x: false, row: 3, up: true },
+  T2: { name: '미드탐', key: 'd/5', x: false, row: 3, up: true },
+  FT: { name: '플로어탐', key: 'a/4', x: false, row: 4, up: true },
+  K:  { name: '킥', key: 'f/4', x: false, row: 5, up: false },
+  HP: { name: '하이햇 페달', key: 'd/4', x: true, row: 5, up: false }
+};
+const ROWS = ['심벌', '하이햇', '스네어', '탐', '플로어탐', '킥'];
+
+/* 저작권 걱정 없는 직접 만든 예제 악보 */
+function exampleScore() {
+  const q = 24, e = 12, s = 6;
+  const groove = (kicks = [0, 2 * q]) => {
+    const n = [];
+    for (let k = 0; k < 8; k++) n.push({ t: k * e, i: 'HH' });
+    kicks.forEach(t => n.push({ t, i: 'K' }));
+    n.push({ t: q, i: 'S' }, { t: 3 * q, i: 'S' });
+    return n;
+  };
+  const crash = n => n.filter(x => !(x.i === 'HH' && x.t === 0)).concat({ t: 0, i: 'C', a: '>' });
+  const m = [];
+  m.push(crash(groove()));
+  m.push(groove());
+  m.push(groove());
+  m.push([{ t: 0, i: 'HH' }, { t: e, i: 'HH' }, { t: q, i: 'HH' }, { t: q + e, i: 'HH' }, { t: 0, i: 'K' }, { t: q, i: 'S' },
+    ...[0, 1, 2, 3].map(k => ({ t: 2 * q + k * s, i: k < 2 ? 'S' : 'T1', s: k % 2 ? 'L' : 'R' })),
+    ...[0, 1, 2, 3].map(k => ({ t: 3 * q + k * s, i: k < 2 ? 'T2' : 'FT', s: k % 2 ? 'L' : 'R' }))]);
+  m.push(crash(groove([0, q + e, 2 * q])));
+  m.push(groove([0, q + e, 2 * q]).map(x => (x.i === 'HH' && x.t === 3 * q + e) ? { ...x, a: 'o' } : x));
+  m.push(groove([0, q + e, 2 * q, 2 * q + e]));
+  m.push([{ t: 0, i: 'HH' }, { t: e, i: 'HH' }, { t: q, i: 'HH' }, { t: q + e, i: 'HH' }, { t: 0, i: 'K' }, { t: q, i: 'S', a: '>' },
+    ...[0, 1, 2].map(k => ({ t: 2 * q + k * 8, i: 'S', s: k % 2 ? 'L' : 'R' })),
+    ...[0, 1, 2].map(k => ({ t: 3 * q + k * 8, i: ['T1', 'T2', 'FT'][k], s: k % 2 ? 'L' : 'R' }))]);
+  m.push([{ t: 0, i: 'C', a: '>' }, { t: 0, i: 'K' }]);
+  return { id: 'builtin-8beat', title: '예제: 8비트와 필인', bpm: 90, beats: 4, builtin: true, measures: m.map(notes => ({ notes })) };
+}
+
+/* 불러온 악보 검사 */
+function normalizeScore(o) {
+  if (!o || !Array.isArray(o.measures) || !o.measures.length) throw new Error('measures(마디 목록)가 없습니다');
+  const beats = Math.max(1, Math.min(12, Math.round(o.beats || 4)));
+  const len = beats * TPQ;
+  const measures = o.measures.map(m => ({
+    notes: (Array.isArray(m && m.notes) ? m.notes : [])
+      .filter(n => n && INST[n.i] && Number.isFinite(+n.t))
+      .map(n => ({ t: Math.max(0, Math.min(len - 1, Math.round(+n.t))), i: n.i, ...(n.a ? { a: String(n.a) } : {}), ...(n.s ? { s: String(n.s).toUpperCase().slice(0, 2) } : {}) }))
+  }));
+  return { id: o.id || ('s' + Date.now()), title: String(o.title || '제목 없는 악보').slice(0, 60), bpm: Math.max(30, Math.min(300, Math.round(o.bpm || 100))), beats, measures };
+}
+
+const SKEY = 'drumpractice.scores.v1';
+let SCORES = (() => { try { return JSON.parse(localStorage.getItem(SKEY) || '[]'); } catch (e) { return []; } })();
+function saveScores() { try { localStorage.setItem(SKEY, JSON.stringify(SCORES)); } catch (e) { toast('저장 공간이 부족합니다'); } }
+function allScores() { return [exampleScore(), ...SCORES]; }
+
+const SC = { score: null, events: [], mStart: [], from: 0, to: 0, base: 0, L: 0, loopEv: [], states: new Map(), cursor: null, t0: 0, bd: 0.6, layout: null, lastPass: -1, rowShown: -1 };
+
+function loadScore(id) {
+  const sc = allScores().find(x => x.id === id) || allScores()[0];
+  SC.score = sc; S.scoreId = sc.id; save();
+  // 마디 시작 박, 같은 시각 노트를 하나의 '타격 이벤트'로 묶음
+  SC.mStart = []; let acc = 0;
+  sc.measures.forEach(() => { SC.mStart.push(acc); acc += sc.beats; });
+  SC.events = [];
+  sc.measures.forEach((m, mi) => {
+    const byT = new Map();
+    m.notes.forEach(n => { if (!byT.has(n.t)) byT.set(n.t, []); byT.get(n.t).push(n); });
+    [...byT.keys()].sort((a, b) => a - b).forEach(t => SC.events.push({ m: mi, t, beat: SC.mStart[mi] + t / TPQ, notes: byT.get(t) }));
+  });
+  SC.from = 0; SC.to = sc.measures.length - 1;
+  if ($('sdNum')) { $('sdNum').textContent = '—'; $('sdNum').className = 'sd-num'; $('sdText').textContent = '대기 중'; $('sdText').className = 'sd-text'; $('sdAcc').textContent = '—'; }
+  fillRangeSelects();
+  setLoop();
+  renderScoreView(true);
+}
+
+function setLoop() {
+  const sc = SC.score;
+  SC.from = Math.min(SC.from, SC.to);
+  SC.base = SC.mStart[SC.from];
+  SC.L = SC.mStart[SC.to] + sc.beats - SC.base;
+  SC.loopEv = SC.events.filter(e => e.m >= SC.from && e.m <= SC.to);
+  // 이웃 노트와의 간격으로 판정 허용 범위(박 단위)를 정함
+  SC.loopEv.forEach((e, k) => {
+    const prev = k > 0 ? e.beat - SC.loopEv[k - 1].beat : Infinity;
+    const next = k < SC.loopEv.length - 1 ? SC.loopEv[k + 1].beat - e.beat : Infinity;
+    e.k = k; e.winB = Math.min(prev, next) * 0.5;
+  });
+}
+
+function scoreBpm() { return Math.round(SC.score.bpm * S.scoreSpeed); }
+function evTime(e, pass) { return SC.t0 + (e.beat - SC.base + pass * SC.L) * SC.bd; }
+function evWin(e) { return Math.min(0.12, e.winB * SC.bd); }
+function relNow(t) { return (t - SC.t0) / SC.bd; }
+
+function scoreHit(tRaw) {
+  const t = tRaw - offsetSec();
+  const rel = relNow(t);
+  if (rel < -0.5) return; // 세는 중
+  const p = Math.floor(rel / SC.L);
+  let best = null;
+  for (let pass = Math.max(0, p - 1); pass <= p + 1; pass++) {
+    if (!S.scoreLoop && pass > 0) break;
+    for (const e of SC.loopEv) {
+      const et = evTime(e, pass), d = t - et;
+      if (Math.abs(d) > evWin(e)) continue;
+      if (SC.states.has(pass * 1e5 + e.k)) continue;
+      if (!best || Math.abs(d) < Math.abs(best.d)) best = { e, pass, et, d };
+    }
+  }
+  if (!best) { sess.extras++; scoreReadout({ cat: 'extra' }); return; }
+  const err = best.d * 1000, cat = classify(err);
+  const h = { t, gt: best.et, err, cat, muted: false, m: best.e.m };
+  SC.states.set(best.pass * 1e5 + best.e.k, { cat, err, pass: best.pass });
+  sess.hits.push(h); window.__drum.hits.push(h);
+  markEvent(best.e, cat, best.pass);
+  scoreReadout(h);
+}
+
+function scoreMisses() {
+  const now = ctx.currentTime - offsetSec();
+  while (SC.cursor) {
+    const { pass, k } = SC.cursor; const e = SC.loopEv[k];
+    if (!e) { SC.cursor = null; break; }
+    const et = evTime(e, pass);
+    if (now < et + evWin(e) + 0.03) break;
+    const key = pass * 1e5 + k;
+    if (!SC.states.has(key)) {
+      SC.states.set(key, { cat: 'miss', pass });
+      sess.misses.push({ gt: et, cat: 'miss', m: e.m });
+      markEvent(e, 'miss', pass);
+      scoreReadout({ cat: 'miss' });
+    }
+    if (k + 1 < SC.loopEv.length) SC.cursor = { pass, k: k + 1 };
+    else if (S.scoreLoop) SC.cursor = { pass: pass + 1, k: 0 };
+    else { SC.cursor = null; setTimeout(() => { if (T.running && T.kind === 'score') endScore(); }, 800); }
+  }
+}
+
+function scoreReadout(h) {
+  const num = $('sdNum'), txt = $('sdText');
+  if (h.cat === 'extra') { txt.textContent = '악보에 없는 타격'; txt.className = 'sd-text'; return; }
+  num.className = 'sd-num c-' + h.cat; txt.className = 'sd-text c-' + h.cat;
+  if (h.cat === 'miss') { num.textContent = '×'; txt.textContent = '놓침'; }
+  else {
+    const v = Math.round(h.err);
+    num.textContent = (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v);
+    txt.textContent = { perfect: '완벽', good: '좋음', early: '빠름', late: '늦음' }[h.cat];
+  }
+  const ok = sess.hits.filter(x => x.cat === 'perfect' || x.cat === 'good').length, tot = sess.hits.length + sess.misses.length;
+  $('sdAcc').textContent = tot ? Math.round(ok / tot * 100) + '%' : '—';
+}
+
+/* ---------- 오선 악보 그리기 (VexFlow) ---------- */
+const DUR = [[24, 'q'], [18, '8d'], [12, '8'], [9, '16d'], [6, '16'], [3, '32']];
+function splitDur(d) { const out = []; for (const [v, n] of DUR) while (d >= v) { out.push(n); d -= v; } return out.length ? out : ['32']; }
+
+function buildVoice(VF, meas, beats, isUp) {
+  const notes = meas.notes.filter(n => INST[n.i].up === isUp);
+  const byT = new Map();
+  notes.forEach(n => { if (!byT.has(n.t)) byT.set(n.t, []); byT.get(n.t).push(n); });
+  const tick = [], beams = [], tuplets = [], map = new Map();
+  const dir = isUp ? 1 : -1;
+  const rest = d => {
+    const nd = new VF.StaveNote({ keys: [isUp ? 'e/5' : 'e/4'], duration: d.replace('d', ''), type: 'r', dots: d.includes('d') ? 1 : 0 });
+    if (d.includes('d')) VF.Dot.buildAndAttach([nd], { all: true });
+    return nd;
+  };
+  const note = (ns, d) => {
+    const keys = ns.map(n => INST[n.i].key + (INST[n.i].x ? '/x2' : ''));
+    const nd = new VF.StaveNote({ keys, duration: d.replace('d', ''), dots: d.includes('d') ? 1 : 0, stem_direction: dir });
+    if (d.includes('d')) VF.Dot.buildAndAttach([nd], { all: true });
+    const top = [];
+    if (ns.some(n => n.a === '>')) top.push('>');
+    if (ns.some(n => n.a === 'o')) top.push('o');
+    const st = ns.find(n => n.s); if (st) top.push(st.s);
+    if (top.length) nd.addModifier(new VF.Annotation(top.join(' ')).setFont('Pretendard', 11, 'bold').setVerticalJustification(isUp ? VF.Annotation.VerticalJustify.TOP : VF.Annotation.VerticalJustify.BOTTOM), 0);
+    return nd;
+  };
+  if (!notes.length) {
+    if (beats === 4) tick.push(rest('w'));
+    else for (let b = 0; b < beats; b++) tick.push(rest('q'));
+    return { tick, beams, tuplets, map };
+  }
+  for (let b = 0; b < beats; b++) {
+    const base = b * TPQ;
+    const rs = [...byT.keys()].filter(t => t >= base && t < base + TPQ).sort((x, y) => x - y);
+    const group = [];
+    if (!rs.length) { tick.push(rest('q')); continue; }
+    const rel = rs.map(t => t - base);
+    const trip = rel.every(r => r % 8 === 0) && rel.some(r => r % 6 !== 0);
+    const sext = !trip && rel.every(r => r % 4 === 0) && rel.some(r => r % 6 !== 0);
+    if (trip || sext) {
+      const step = trip ? 8 : 4, d = trip ? '8' : '16';
+      for (let r = 0; r < TPQ; r += step) {
+        const ns = byT.get(base + r);
+        const nd = ns ? note(ns, d) : rest(d);
+        if (ns) map.set(base + r, nd);
+        group.push(nd);
+      }
+      tuplets.push(new VF.Tuplet(group, { num_notes: trip ? 3 : 6, notes_occupied: trip ? 2 : 4, ratioed: false }));
+    } else {
+      // 32분음표 칸에 맞춤
+      const q = rel.map(r => Math.round(r / 3) * 3);
+      let cur = 0;
+      q.forEach((r, k) => {
+        if (r > cur) splitDur(r - cur).forEach(d => group.push(rest(d)));
+        const nxt = k + 1 < q.length ? q[k + 1] : TPQ;
+        const parts = splitDur(Math.max(3, nxt - r));
+        const nd = note(byT.get(rs[k]), parts[0]);
+        map.set(rs[k], nd); group.push(nd);
+        parts.slice(1).forEach(d => group.push(rest(d)));
+        cur = nxt;
+      });
+    }
+    tick.push(...group);
+    try { beams.push(...VF.Beam.generateBeams(group, { stem_direction: dir, maintain_stem_directions: true })); } catch (e) {}
+  }
+  return { tick, beams, tuplets, map };
+}
+
+function renderStaff() {
+  const VF = window.Vex && Vex.Flow;
+  const wrap = $('staffWrap'), host = $('staffHost');
+  host.innerHTML = '';
+  if (!VF) { host.textContent = '악보 그리기 도구를 불러오지 못했습니다. 줄 보기로 바꿔 주세요.'; return; }
+  const sc = SC.score;
+  const W = Math.max(280, wrap.clientWidth - 4);
+  const per = Math.max(1, Math.floor((W - 40) / 165));
+  const rowH = 168, top = 40;
+  const rows = Math.ceil(sc.measures.length / per);
+  const R = new VF.Renderer(host, VF.Renderer.Backends.SVG);
+  R.resize(W, top + rows * rowH);
+  const g = R.getContext();
+  const mw = (W - 44) / per;
+  const lay = { meas: [], rowTop: [], ev: new Map() };
+  sc.measures.forEach((meas, m) => {
+    const r = Math.floor(m / per), c = m % per;
+    const x = c === 0 ? 2 : 42 + c * mw, w = c === 0 ? mw + 40 : mw;
+    const y = top + r * rowH;
+    lay.rowTop[r] = y;
+    const st = new VF.Stave(x, y, w, { fill_style: '#7d879a', space_above_staff_ln: 3 });
+    if (c === 0) st.addClef('percussion');
+    if (m === 0) st.addTimeSignature(`${sc.beats}/4`);
+    st.setMeasure(m + 1);
+    st.setContext(g).draw();
+    const up = buildVoice(VF, meas, sc.beats, true), dn = buildVoice(VF, meas, sc.beats, false);
+    const mk = tk => { const v = new VF.Voice({ num_beats: sc.beats, beat_value: 4 }); v.setMode(VF.Voice.Mode.SOFT); v.addTickables(tk); return v; };
+    const vu = mk(up.tick), vd = mk(dn.tick);
+    try {
+      new VF.Formatter().joinVoices([vu, vd]).format([vu, vd], st.getNoteEndX() - st.getNoteStartX() - 12);
+      vu.draw(g, st); vd.draw(g, st);
+      [...up.beams, ...dn.beams].forEach(b => b.setContext(g).draw());
+      [...up.tuplets, ...dn.tuplets].forEach(t => t.setContext(g).draw());
+    } catch (err) { console.warn('마디', m + 1, err); }
+    const anchors = [[0, st.getNoteStartX()]];
+    SC.events.filter(e => e.m === m).forEach(e => {
+      const nds = [up.map.get(e.t), dn.map.get(e.t)].filter(Boolean);
+      if (!nds.length) return;
+      const x0 = nds[0].getNoteHeadBeginX ? nds[0].getNoteHeadBeginX() : nds[0].getAbsoluteX();
+      const heads = [];
+      nds.forEach(nd => { const hx = (nd.getNoteHeadBeginX() + nd.getNoteHeadEndX()) / 2; nd.getYs().forEach(yy => heads.push([hx, yy])); });
+      lay.ev.set(SC.events.indexOf(e), { heads, x: heads[0][0] });
+      anchors.push([e.t / TPQ, heads[0][0]]);
+      void x0;
+    });
+    anchors.push([sc.beats, st.getNoteEndX()]);
+    anchors.sort((a, b) => a[0] - b[0]);
+    lay.meas[m] = { row: r, x, w, y, h: rowH, anchors };
+  });
+  // 덧그림 층: 구간 밖 흐리게, 판정 표시, 진행 커서
+  const svg = host.querySelector('svg');
+  const NS = 'http://www.w3.org/2000/svg';
+  const layer = document.createElementNS(NS, 'g'); svg.appendChild(layer);
+  sc.measures.forEach((_, m) => {
+    if (m >= SC.from && m <= SC.to) return;
+    const L = lay.meas[m], rc = document.createElementNS(NS, 'rect');
+    rc.setAttribute('x', L.x); rc.setAttribute('y', L.y - 30); rc.setAttribute('width', L.w); rc.setAttribute('height', L.h);
+    rc.setAttribute('fill', '#e4e9f0'); rc.setAttribute('opacity', '.65'); layer.appendChild(rc);
+  });
+  const marks = document.createElementNS(NS, 'g'); svg.appendChild(marks);
+  lay.ev.forEach((v, idx) => {
+    v.dots = v.heads.map(([hx, hy]) => {
+      const c = document.createElementNS(NS, 'circle');
+      c.setAttribute('cx', hx); c.setAttribute('cy', hy); c.setAttribute('r', 7.5);
+      c.setAttribute('fill', 'none'); c.setAttribute('stroke-width', 3); c.style.display = 'none';
+      marks.appendChild(c); return c;
+    });
+    void idx;
+  });
+  const cur = document.createElementNS(NS, 'rect');
+  cur.setAttribute('width', 3); cur.setAttribute('rx', 1.5); cur.setAttribute('fill', '#3f7fd6'); cur.setAttribute('height', 74);
+  svg.appendChild(cur);
+  lay.cursor = cur;
+  SC.layout = lay; SC.rowShown = -1;
+  placeCursor(SC.base);
+}
+
+function markEvent(e, cat, pass) {
+  if (!SC.layout) return;
+  const v = SC.layout.ev.get(SC.events.indexOf(e)); if (!v) return;
+  v.pass = pass;
+  v.dots.forEach(c => { c.style.display = ''; c.setAttribute('stroke', COL[cat]); c.setAttribute('fill', cat === 'miss' ? 'none' : COL[cat] + '33'); });
+}
+function clearMarks() { if (SC.layout) SC.layout.ev.forEach(v => v.dots.forEach(c => c.style.display = 'none')); }
+
+function placeCursor(absBeat) {
+  const lay = SC.layout; if (!lay) return;
+  const sc = SC.score;
+  let m = 0; while (m + 1 < sc.measures.length && SC.mStart[m + 1] <= absBeat) m++;
+  const L = lay.meas[m]; if (!L) return;
+  const f = absBeat - SC.mStart[m];
+  const A = L.anchors; let x = A[0][1];
+  for (let k = 0; k + 1 < A.length; k++) if (f >= A[k][0] && f <= A[k + 1][0]) { const span = A[k + 1][0] - A[k][0] || 1; x = A[k][1] + (A[k + 1][1] - A[k][1]) * (f - A[k][0]) / span; break; }
+  lay.cursor.setAttribute('x', x - 1.5); lay.cursor.setAttribute('y', L.y + 14);
+  if (L.row !== SC.rowShown) {
+    SC.rowShown = L.row;
+    const wrap = $('staffWrap');
+    wrap.scrollTo({ top: Math.max(0, L.y - 30), behavior: T.running ? 'smooth' : 'auto' });
+  }
+}
+
+/* ---------- 악기별 줄 보기 ---------- */
+function drawScoreLane() {
+  const c = $('scoreLane'); const [g, W, H] = fitCanvas(c);
+  g.clearRect(0, 0, W, H);
+  if (!SC.score) return;
+  const labW = 58, top = 12, rowH = (H - top - 8) / ROWS.length;
+  const running = T.running && T.kind === 'score';
+  const now = running ? ctx.currentTime - offsetSec() : null;
+  const rel = running ? relNow(now) : 0;
+  const ppb = (W - labW) / (SC.score.beats * 2.2);
+  const px = labW + (W - labW) * 0.2;
+  const X = r => px + (r - rel) * ppb;
+  // 줄 바탕
+  ROWS.forEach((name, k) => {
+    const y = top + k * rowH;
+    g.fillStyle = k % 2 ? 'rgba(74,84,104,.035)' : 'rgba(255,255,255,.35)';
+    g.fillRect(labW, y, W - labW, rowH);
+    g.fillStyle = '#8b94a7'; g.font = '600 12px Pretendard Variable, sans-serif'; g.textAlign = 'right'; g.textBaseline = 'middle';
+    g.fillText(name, labW - 8, y + rowH / 2);
+  });
+  g.save(); g.beginPath(); g.rect(labW, 0, W - labW, H); g.clip();
+  const rMin = rel - (px - labW) / ppb - 1, rMax = rel + (W - px) / ppb + 1;
+  const passes = [];
+  const p0 = Math.floor(rMin / SC.L), p1 = Math.floor(rMax / SC.L);
+  for (let p = Math.max(0, p0); p <= p1; p++) { if (!S.scoreLoop && p > 0) break; passes.push(p); }
+  if (rMin < 0) { /* 세는 중: 앞쪽은 비워 둠 */ }
+  passes.forEach(p => {
+    // 마디선
+    for (let m = SC.from; m <= SC.to; m++) {
+      const r = SC.mStart[m] - SC.base + p * SC.L; if (r < rMin || r > rMax) continue;
+      const x = X(r);
+      g.strokeStyle = 'rgba(74,84,104,.35)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x, top); g.lineTo(x, H - 8); g.stroke();
+      g.fillStyle = '#8b94a7'; g.font = '11px Pretendard Variable, sans-serif'; g.textAlign = 'left'; g.textBaseline = 'top';
+      g.fillText(String(m + 1), x + 4, 0);
+      for (let b = 1; b < SC.score.beats; b++) { const xb = X(r + b); g.strokeStyle = 'rgba(74,84,104,.12)'; g.lineWidth = 1; g.beginPath(); g.moveTo(xb, top); g.lineTo(xb, H - 8); g.stroke(); }
+    }
+    SC.loopEv.forEach(e => {
+      const r = e.beat - SC.base + p * SC.L; if (r < rMin || r > rMax) return;
+      const x = X(r); const st = SC.states.get(p * 1e5 + e.k);
+      const done = running && st && st.pass === p;
+      e.notes.forEach(n => {
+        const y = top + INST[n.i].row * rowH + rowH / 2;
+        const rad = Math.min(9, rowH * 0.32) + (n.a === '>' ? 2 : 0);
+        if (done && st.cat === 'miss') {
+          g.strokeStyle = COL.miss; g.lineWidth = 2.5; const d = rad * 0.7;
+          g.beginPath(); g.moveTo(x - d, y - d); g.lineTo(x + d, y + d); g.moveTo(x + d, y - d); g.lineTo(x - d, y + d); g.stroke();
+        } else {
+          g.fillStyle = done ? COL[st.cat] : (INST[n.i].x ? '#6b7486' : '#4a5468');
+          g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+          if (n.a === 'o') { g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, rad * 0.45, 0, Math.PI * 2); g.stroke(); }
+        }
+        if (n.s) { g.fillStyle = '#3f7fd6'; g.font = '700 11px Pretendard Variable, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom'; g.fillText(n.s, x, y - rad - 1); }
+      });
+    });
+  });
+  g.fillStyle = '#3f7fd6'; g.fillRect(px - 1.5, top - 4, 3, H - top);
+  g.restore();
+}
+
+/* ---------- 화면 연결 ---------- */
+function renderScoreView(rebuild) {
+  const lane = S.scoreView === 'lane';
+  $('staffWrap').hidden = lane; $('scoreLane').hidden = !lane;
+  document.querySelectorAll('#viewSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === S.scoreView));
+  if (!$('scoreStage').offsetParent) SC.layout = null; // 화면에 보일 때 다시 그림
+  else if (!lane && (rebuild || !SC.layout)) renderStaff();
+  $('speedInfo').textContent = `${scoreBpm()} BPM`;
+}
+function fillScoreSelect() {
+  $('scoreSel').innerHTML = allScores().map(s => `<option value="${esc(s.id)}">${esc(s.title)}</option>`).join('');
+  $('scoreSel').value = SC.score ? SC.score.id : (S.scoreId || 'builtin-8beat');
+}
+function fillRangeSelects() {
+  const n = SC.score.measures.length;
+  const opts = Array.from({ length: n }, (_, k) => `<option value="${k}">${k + 1}마디</option>`).join('');
+  $('fromSel').innerHTML = opts; $('toSel').innerHTML = opts;
+  $('fromSel').value = SC.from; $('toSel').value = SC.to;
+}
+function scoreCtrlDisabled(on) { ['scoreSel', 'fromSel', 'toSel', 'speedSel', 'importBtn', 'loopChk'].forEach(id => $(id).disabled = on); }
+
+async function toggleScore() {
+  if (T.running && T.kind === 'score') { endScore(); return; }
+  if (T.running) return;
+  try { await ensureAudio(); } catch (e) { micError(e); return; }
+  pushDetector();
+  // 악보에서 가장 촘촘한 간격에 맞춰 재감지 대기 시간을 조정
+  const minGap = SC.loopEv.reduce((a, e) => Math.min(a, e.winB * 2), 1);
+  onsetNode.port.postMessage({ refr: Math.min(0.05, minGap * 60 / scoreBpm() * 0.55) });
+  newSession(); sess.title = SC.score.title; sess.bpm = scoreBpm(); sess.beats = SC.score.beats;
+  window.__drum.hits = []; SC.states = new Map(); clearMarks();
+  $('sdNum').textContent = '—'; $('sdNum').className = 'sd-num'; $('sdText').textContent = '세는 중'; $('sdText').className = 'sd-text'; $('sdAcc').textContent = '—';
+  startTransport('score');
+  SC.bd = 60 / T.bpm; SC.t0 = T.startT + T.countIn * SC.bd; SC.cursor = { pass: 0, k: 0 }; SC.lastPass = 0;
+  scoreCtrlDisabled(true);
+  $('scoreStart').textContent = '정지'; $('scoreStart').classList.add('stop');
+}
+function endScore() {
+  stopTransport();
+  scoreCtrlDisabled(false);
+  $('scoreStart').textContent = '시작'; $('scoreStart').classList.remove('stop');
+  placeCursor(SC.base);
+  if (sess && sess.hits.length >= 8) {
+    const rec = packSession(sess);
+    HIST.unshift(rec); saveHist(); renderHist(); openSummary(rec);
+  } else if (sess) toast('8타 이상 쳐야 기록이 남습니다');
+}
+
+function scoreFrame() {
+  if (!$('scoreStage').offsetParent || !SC.score) return;
+  if (S.scoreView === 'lane') drawScoreLane();
+  else if (T.running && T.kind === 'score') {
+    const rel = relNow(ctx.currentTime - offsetSec());
+    const pass = Math.max(0, Math.floor(rel / SC.L));
+    if (pass !== SC.lastPass) { SC.lastPass = pass; clearMarks(); }
+    const inLoop = rel < 0 ? 0 : (S.scoreLoop ? rel - pass * SC.L : Math.min(rel, SC.L));
+    placeCursor(SC.base + inLoop);
+  }
+}
+
+$('scoreSel').addEventListener('change', e => loadScore(e.target.value));
+$('fromSel').addEventListener('change', e => { SC.from = +e.target.value; if (SC.to < SC.from) { SC.to = SC.from; $('toSel').value = SC.to; } setLoop(); renderScoreView(true); });
+$('toSel').addEventListener('change', e => { SC.to = +e.target.value; if (SC.from > SC.to) { SC.from = SC.to; $('fromSel').value = SC.from; } setLoop(); renderScoreView(true); });
+$('speedSel').addEventListener('change', e => { S.scoreSpeed = +e.target.value; save(); renderScoreView(false); });
+$('loopChk').addEventListener('change', e => { S.scoreLoop = e.target.checked; save(); });
+document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => { S.scoreView = b.dataset.v; save(); renderScoreView(false); }));
+$('scoreStart').addEventListener('click', toggleScore);
+$('importBtn').addEventListener('click', () => $('importFile').click());
+$('importFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const sc = normalizeScore(JSON.parse(await f.text()));
+    sc.id = 's' + Date.now();
+    SCORES.push(sc); saveScores(); fillScoreSelect(); loadScore(sc.id); $('scoreSel').value = sc.id;
+    toast(`‘${sc.title}’ 불러옴 (${sc.measures.length}마디)`);
+  } catch (err) { toast('악보 파일을 읽지 못했습니다: ' + err.message); }
+});
+let _rsT; window.addEventListener('resize', () => { clearTimeout(_rsT); _rsT = setTimeout(() => { if (SC.score && S.scoreView !== 'lane' && $('scoreStage').offsetParent) renderStaff(); else SC.layout = null; }, 200); });
+
 /* 초기화 */
 $('sigSel').value = S.beats; $('judgeSel').value = S.judgeSub; $('clickSel').value = S.clickSub; $('gapSel').value = S.gap;
 $('allNotesChk').checked = S.allNotes; $('sensRange').value = S.sens; $('volRange').value = S.clickVol;
 $('countInChk').checked = S.countIn; $('wakeChk').checked = S.wake;
 setBpm(S.bpm); renderDiff(); renderProfiles(); renderHist(); placeThr();
+$('speedSel').value = S.scoreSpeed; $('loopChk').checked = S.scoreLoop;
+loadScore(S.scoreId); fillScoreSelect();
 requestAnimationFrame(loop);
 history.scrollRestoration = 'manual';
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) navigator.serviceWorker.register('sw.js').catch(() => {});
