@@ -1,5 +1,5 @@
 // 오프라인에서도 열리도록 앱 파일을 저장해 둠
-const CACHE = 'drumpractice-v7';
+const CACHE = 'drumpractice-v8';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon.svg', './vexflow.js'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
@@ -11,7 +11,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   e.respondWith(
-    fetch(e.request).then(r => {
+    fetch(e.request, { cache: 'no-cache' }).then(r => {
       if (r.ok && new URL(e.request.url).origin === location.origin) {
         const copy = r.clone(); caches.open(CACHE).then(c => c.put(e.request, copy));
       }

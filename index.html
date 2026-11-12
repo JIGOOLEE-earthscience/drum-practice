@@ -423,6 +423,14 @@ nav.tabs button.on{color:var(--accent);box-shadow:var(--press-s)}
       </div>
 
       <div class="card">
+        <h3 style="margin-top:0">진단 녹음</h3>
+        <p class="help">타격이 아닌 소리가 잡힐 때 원인을 찾기 위한 기능입니다. 실제로 연습하는 자리와 장치(폰 스피커 등) 그대로 누르면 메트로놈이 나오며 15초 녹음합니다. 화면 안내에 따라 가만히 5초, 말하기 5초, 드럼 몇 번 치기 5초를 하면 파일이 저장됩니다. 그 파일을 대화창에 첨부해 주세요.</p>
+        <button class="btn primary" id="diagRec">15초 진단 녹음</button>
+        <p class="help" id="diagStep" style="margin:10px 0 0;color:var(--accent);font-weight:700"></p>
+        <label class="toggle" style="margin-top:14px">폰 스피커일 때 브라우저 에코 제거도 사용 (실험)<input type="checkbox" id="aecChk"></label>
+      </div>
+
+      <div class="card">
         <h3 style="margin-top:0">감지 기록</h3>
         <p class="help">마이크가 타격으로 잡은 소리를 최근 순서로 보여 줍니다. 드럼을 치지 않았는데 잡히는 소리가 있으면 이 화면을 캡처해서 보내 주세요.</p>
         <ul class="diag" id="diagList"><li class="empty">아직 잡힌 소리가 없습니다.</li></ul>
@@ -430,7 +438,7 @@ nav.tabs button.on{color:var(--accent);box-shadow:var(--press-s)}
 
       <div class="card">
         <button class="btn" id="resetAll">설정과 기록 모두 지우기</button>
-        <p class="help" style="margin:12px 0 0">앱 버전 2026.11.12-d (주변 말소리 거르기 포함)</p>
+        <p class="help" style="margin:12px 0 0" id="verText"></p>
       </div>
     </section>
 
@@ -471,6 +479,7 @@ nav.tabs button.on{color:var(--accent);box-shadow:var(--press-s)}
 /* =========================================================
    1. 저장 / 설정
    ========================================================= */
+const APP_VER = '2026.11.12-e';
 const KEY = 'drumpractice.settings.v1';
 const HKEY = 'drumpractice.history.v1';
 const DEF = {
@@ -531,8 +540,17 @@ class OnsetProcessor extends AudioWorkletProcessor {
     this.slowCoef = 1 - Math.exp(-1 / (0.03 * sampleRate));
     const rc = 1 / (2 * Math.PI * 60);
     this.hpA = rc / (rc + 1 / sampleRate); this.hpX = 0; this.hpY = 0;
-    this.last = -1e12; this.lastPeak = 1; this.pending = null;
+    this.last = -1e12; this.lastPeak = 1; this.pending = null; this.armed = true;
+    this.med = 0; this.relMed = Math.exp(-1 / (0.03 * sampleRate));
     this.mPeak = 0; this.mCount = 0; this.mEvery = Math.round(0.05 * sampleRate);
+    this.rec = false; this.rbuf = null; this.rN = 0; this.rF = 0;
+    // 메트로놈은 2.5kHz 한 음만 씀 → 이 음과 배음(5, 7.5kHz)을 지운 신호로 타격을 찾음
+    this.notch = true;
+    this.nf = [2500, 5000, 7500].filter(f => f < sampleRate / 2.2).map(f0 => {
+      const w = 2 * Math.PI * f0 / sampleRate, al = Math.sin(w) / 2, c = Math.cos(w), a0 = 1 + al;
+      return { b0: 1 / a0, b1: -2 * c / a0, b2: 1 / a0, a1: -2 * c / a0, a2: (1 - al) / a0, x1: 0, x2: 0, y1: 0, y2: 0 };
+    });
+    this.swell = 1.6;
     this.voice = true; this.floorK = 3; this.rise = 3; this.midMax = 0.85; this.perMax = 0.8;
     this.pk8 = Math.round(0.008 * sampleRate); this.pk4 = Math.round(0.004 * sampleRate); this.hiMin = 0.05; this.lastRej = -1e12; this.rejGap = Math.round(0.15 * sampleRate);
     this.floor = 0; this.floorCoef = 1 - Math.exp(-1 / (1.0 * sampleRate)); this.hold = 0;
@@ -546,6 +564,8 @@ class OnsetProcessor extends AudioWorkletProcessor {
       if (d.thr != null) this.thr = d.thr;
       if (d.ratio != null) this.ratio = d.ratio;
       if (d.refr != null) this.refr = Math.round(d.refr * sampleRate);
+      if (d.rec != null) { this.rec = d.rec; this.rbuf = null; }
+      if (d.notch != null) this.notch = d.notch;
     };
   }
   biquad(fc, kind) {
@@ -575,11 +595,18 @@ class OnsetProcessor extends AudioWorkletProcessor {
     const ch = inputs[0] && inputs[0][0];
     if (!ch) return true;
     const base = currentFrame;
+    if (this.rec) {
+      if (!this.rbuf) { this.rbuf = new Float32Array(8192); this.rN = 0; this.rF = base; }
+      this.rbuf.set(ch, this.rN); this.rN += ch.length;
+      if (this.rN + 128 > this.rbuf.length) { this.port.postMessage({ type: 'pcm', f: this.rF, d: this.rbuf.slice(0, this.rN) }); this.rbuf = null; }
+    }
     for (let i = 0; i < ch.length; i++) {
-      const x = ch[i];
+      let x = ch[i];
+      if (this.notch) for (const q of this.nf) { const o = q.b0 * x + q.b1 * q.x1 + q.b2 * q.x2 - q.a1 * q.y1 - q.a2 * q.y2; q.x2 = q.x1; q.x1 = x; q.y2 = q.y1; q.y1 = o; x = o; }
       const y = this.hpA * (this.hpY + x - this.hpX); this.hpX = x; this.hpY = y;
       const a = y < 0 ? -y : y;
       this.fast = a > this.fast ? a : this.fast * this.relFast;
+      this.med = a > this.med ? a : this.med * this.relMed;
       this.slow += (this.fast - this.slow) * this.slowCoef;
       const mid = this.bq(this.lp, this.bq(this.hp, y)), hi = this.bq(this.hi, y);
       this.ring[this.ri] = this.fast; this.ri = (this.ri + 1) & 4095;
@@ -588,35 +615,41 @@ class OnsetProcessor extends AudioWorkletProcessor {
       const P = this.pending;
       if (P) {
         if (P.age < this.pk8 && a > P.peak) P.peak = a;
+        // e1: 처음 4ms 크기, e2: 4~16ms 크기 (드럼은 e1이 크고, 말소리는 점점 커져 e2가 큼)
+        if (P.age < this.pk4) { if (this.fast > P.e1) P.e1 = this.fast; } else if (this.fast > P.e2) P.e2 = this.fast;
         P.eTot += y * y; P.eMid += mid * mid;
         if (P.age < this.pk4) { P.eTot4 += y * y; P.eHi4 += hi * hi; }
-        if (P.age % this.dec === 0) this.buf[P.n++] = mid;
+        if (P.age % this.dec === 0 && P.n < this.buf.length) this.buf[P.n++] = mid;
         P.age++;
-        if (P.age >= (this.voice ? this.win : this.pk8)) {
+        if (P.age >= this.win) {
           this.pending = null;
           let why = '', rise = 0, share = 0, per = 0;
           if (this.voice) {
             rise = P.peak / Math.max(P.pre, 1e-6); share = P.eMid / Math.max(P.eTot, 1e-12);
             const hiS = P.eHi4 / Math.max(P.eTot4, 1e-12);
-            if (rise < this.rise) why = 'slow';
+            if (rise < this.rise || P.e2 > P.e1 * this.swell) why = 'slow';
             else if (hiS < this.hiMin && (share > this.midMax || (share > 0.7 && (per = this.periodic(P.n)) > this.perMax))) why = 'voice';
           }
+          const info = { t: P.frame / sampleRate, peak: P.peak, e1: P.e1, e2: P.e2, pre: P.pre, rise: P.peak / Math.max(P.pre, 1e-6), share: P.eMid / Math.max(P.eTot, 1e-12), hiS: P.eHi4 / Math.max(P.eTot4, 1e-12), per };
+          // 거른 소리도 줄어들 때까지는 다시 잡지 않음 (긴 말소리가 계속 잡히지 않게)
+          this.lastPeak = Math.max(P.peak, this.med);
           if (why) {
-            this.last = P.prevLast;
-            if (f - this.lastRej > this.rejGap) { this.lastRej = f; this.port.postMessage({ type: 'reject', t: P.frame / sampleRate, peak: P.peak, why, rise, share, per, hiS: P.eHi4 / Math.max(P.eTot4, 1e-12) }); }
+            if (f - this.lastRej > this.rejGap) { this.lastRej = f; this.port.postMessage({ type: 'reject', why, ...info }); }
           } else {
-            this.port.postMessage({ type: 'onset', t: P.frame / sampleRate, peak: P.peak });
-            this.lastPeak = P.peak; this.hold = Math.round(0.15 * sampleRate);
+            this.port.postMessage({ type: 'onset', ...info });
+            this.hold = Math.round(0.15 * sampleRate);
           }
         }
       } else {
         if (this.hold > 0) this.hold--;
         else this.floor += (this.fast - this.floor) * this.floorCoef;
+        // 앞 소리가 절반 아래로 줄어든 뒤에야 다음 소리를 잡음 (킥 울림·말소리가 여러 번 잡히지 않게)
+        if (!this.armed && this.med < this.lastPeak * 0.5) this.armed = true;
         const thr = this.voice ? Math.max(this.thr, this.floor * this.floorK) : this.thr;
-        if (this.fast > thr && this.fast > this.slow * this.ratio && (f - this.last > this.refr || a > this.lastPeak * 3)) {
+        if (this.fast > thr && this.fast > this.slow * this.ratio && ((this.armed && f - this.last > this.refr) || a > this.lastPeak * 3)) {
           const pre = this.ring[(this.ri - 1 - this.preN + 8192) & 4095];
-          this.pending = { frame: f, peak: a, age: 0, n: 0, pre, prevLast: this.last, eTot: 0, eMid: 0, eTot4: 0, eHi4: 0 };
-          this.last = f;
+          this.pending = { frame: f, peak: a, age: 0, n: 0, pre, eTot: 0, eMid: 0, eTot4: 0, eHi4: 0, e1: this.fast, e2: 0 };
+          this.last = f; this.armed = false;
         }
       }
       if (++this.mCount >= this.mEvery) {
@@ -630,7 +663,8 @@ class OnsetProcessor extends AudioWorkletProcessor {
 registerProcessor('onset', OnsetProcessor);
 `;
 
-let ctx = null, micStream = null, micSrc = null, onsetNode = null, clickBus = null;
+let ctx = null, micStream = null, micSrc = null, onsetNode = null, clickBus = null, micAec = null;
+function useAec() { return prof().type === 'speaker' && S.aec === true; }
 window.__drum = { onsets: [], hits: [] }; // 테스트용 기록
 
 async function ensureAudio() {
@@ -641,13 +675,15 @@ async function ensureAudio() {
     clickBus = ctx.createGain(); clickBus.gain.value = S.clickVol; clickBus.connect(ctx.destination);
   }
   if (ctx.state !== 'running') await ctx.resume();
-  if (!micStream) await openMic();
+  if (!micStream || micAec !== useAec()) await openMic();
 }
 
 async function openMic() {
   if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
   if (micSrc) { try { micSrc.disconnect(); } catch (e) {} }
-  const audio = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 };
+  const aec = useAec(); // 폰 스피커 + 사용자가 켠 경우만 브라우저 에코 제거 사용 (드럼 소리 모양을 바꿀 수 있어 기본은 끔)
+  const audio = { echoCancellation: aec, noiseSuppression: false, autoGainControl: false, channelCount: 1 };
+  micAec = aec;
   if (S.inputId) audio.deviceId = { exact: S.inputId };
   try {
     micStream = await navigator.mediaDevices.getUserMedia({ audio });
@@ -673,7 +709,7 @@ function pushDetector() {
   if (!onsetNode) return;
   // 32분음표 같은 빠른 연타도 잡도록, 격자 간격에 맞춰 재감지 대기 시간을 줄임
   const spacing = 60 / S.bpm / Math.max(S.judgeSub, 2);
-  onsetNode.port.postMessage({ thr: sensToThr(S.sens), refr: Math.min(0.05, spacing * 0.55), voice: S.voiceFilter });
+  onsetNode.port.postMessage({ thr: sensToThr(S.sens), refr: Math.min(0.05, spacing * 0.55), voice: S.voiceFilter, notch: true });
 }
 
 /* =========================================================
@@ -689,15 +725,17 @@ function gapMuted(bar) {
 
 function click(t, type) {
   const o = ctx.createOscillator(), g = ctx.createGain();
-  const f = type === 'accent' ? 1760 : type === 'beat' ? 1320 : 880;
-  const v = type === 'accent' ? 1 : type === 'beat' ? 0.7 : 0.32;
-  o.type = 'triangle'; o.frequency.value = f;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(v, t + 0.001);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+  // 마이크가 타격으로 착각하지 않도록 한 음(2.5kHz)으로만 소리 냄 (감지기는 이 음을 지우고 들음). 첫 박은 더 크고 길게
+  const v = type === 'accent' ? 1 : type === 'beat' ? 0.6 : 0.28;
+  const dec = type === 'accent' ? 0.09 : type === 'beat' ? 0.05 : 0.03;
+  o.type = 'sine'; o.frequency.value = 2500;
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(v, t + 0.004);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.004 + dec);
   o.connect(g).connect(clickBus);
-  o.start(t); o.stop(t + 0.06);
+  o.start(t); o.stop(t + 0.01 + dec);
   T.clicks.push(t);
+  if (DREC) DREC.clicks.push(t);
 }
 
 function scheduleBeat(t, i) {
@@ -788,6 +826,7 @@ function classify(errMs) {
 
 function onDetector(e) {
   const m = e.data;
+  if (m.type === 'pcm') { if (DREC) DREC.pcm.push(m); return; }
   if (m.type === 'level') { meter(m.peak); return; }
   if (m.type === 'reject') {
     const d = T.running ? sinceClick(m.t) : null;
@@ -831,7 +870,7 @@ function finishBleedLearn() {
     if (grp.length >= need) BL.clusters.push({ loop: grp.reduce((a, x) => a + x.d, 0) / grp.length, peak: Math.max(...grp.map(x => x.peak)) });
     grp = [];
   };
-  xs.forEach(x => { if (grp.length && x.d - grp[grp.length - 1].d > 0.012) flush(); grp.push(x); });
+  xs.forEach(x => { if (grp.length && x.d - grp[grp.length - 1].d > 0.025) flush(); grp.push(x); });
   flush();
   if (BL.clusters.length) toast('메트로놈 소리가 마이크에 들어와서 자동으로 걸러냅니다');
 }
@@ -844,11 +883,11 @@ function sinceClick(tRaw) {
 /* 폰 스피커로 메트로놈을 틀면 클릭 소리가 마이크로 다시 들어옴.
    자동 측정으로 알아 둔 '클릭이 마이크에 도착하는 시각'과 '크기'에 맞는 소리는 타격으로 세지 않음 */
 function isBleed(tRaw, peak) {
-  for (const cl of BL.clusters) if (peak < cl.peak * 3 && T.clicks.some(c => Math.abs(tRaw - c - cl.loop) < 0.02)) return true;
+  for (const cl of BL.clusters) if (peak < cl.peak * 3 && T.clicks.some(c => Math.abs(tRaw - c - cl.loop) < 0.035)) return true;
   const p = prof();
   if (p.type !== 'speaker' || p.offset == null || !p.bleed) return false;
   const arrive = tRaw - p.offset / 1000;
-  const near = T.clicks.some(c => Math.abs(arrive - c) < 0.025);
+  const near = T.clicks.some(c => Math.abs(arrive - c) < 0.035);
   return near && peak < p.bleed * S.clickVol * 2.5;
 }
 
@@ -1201,7 +1240,7 @@ let cal = null;
 async function startCalib() {
   if (T.running) { if (T.kind === 'calib') { stopTransport(); cal = null; $('calStart').textContent = '보정 시작'; $('calProg').textContent = '취소됨'; } return; }
   try { await ensureAudio(); } catch (e) { micError(e); return; }
-  onsetNode.port.postMessage({ refr: 0.12, voice: false }); // 클릭(삼각파) 소리를 재야 하므로 말소리 거르기를 끔
+  onsetNode.port.postMessage({ refr: 0.12, voice: false, notch: !(prof().type === 'speaker' && $('calMode').value === 'loop') }); // 스피커 자동 측정은 클릭을 들어야 하므로 노치도 끔 // 클릭(삼각파) 소리를 재야 하므로 말소리 거르기를 끔
   const loop = prof().type === 'speaker' && $('calMode').value === 'loop';
   cal = { offs: [], peaks: [], used: new Set(), loop };
   startTransport('calib');
@@ -1315,7 +1354,7 @@ $('judgeSel').addEventListener('change', e => { S.judgeSub = +e.target.value; sa
 $('clickSel').addEventListener('change', e => { S.clickSub = +e.target.value; save(); });
 $('gapSel').addEventListener('change', e => { S.gap = e.target.value; save(); });
 $('allNotesChk').addEventListener('change', e => { S.allNotes = e.target.checked; save(); });
-$('profSel').addEventListener('change', e => { S.active = e.target.value; save(); renderProfiles(); });
+$('profSel').addEventListener('change', async e => { S.active = e.target.value; save(); renderProfiles(); if (ctx && micStream && micAec !== useAec()) { try { await openMic(); } catch (err) { micError(err); } } });
 $('startBtn').addEventListener('click', toggleStart);
 
 document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
@@ -1863,19 +1902,69 @@ let _rsT; window.addEventListener('resize', () => { clearTimeout(_rsT); _rsT = s
 const DIAG = [];
 function diag(m, d, res) {
   const now = new Date();
-  DIAG.unshift({ time: now.toTimeString().slice(0, 8), d: d ? Math.round(d.d * 1000) : null, db: Math.round(20 * Math.log10(Math.max(m.peak, 1e-5))), res });
+  DIAG.unshift({ time: now.toTimeString().slice(0, 8), d: d ? Math.round(d.d * 1000) : null, db: Math.round(20 * Math.log10(Math.max(m.peak, 1e-5))), sh: m.e1 ? Math.round(m.e2 / m.e1 * 100) : null, res });
+  if (DREC) DREC.onsets.push({ t: m.t, peak: m.peak, e1: m.e1, e2: m.e2, pre: m.pre, rise: m.rise, share: m.share, hiS: m.hiS, per: m.per, why: m.why, res });
   if (DIAG.length > 30) DIAG.pop();
   if ($('diagList').offsetParent) renderDiag();
 }
 function renderDiag() {
   if (!DIAG.length) return;
-  $('diagList').innerHTML = DIAG.map(x => `<li><span class="dt">${x.time}</span><span class="dd">${x.d == null ? '클릭 없음' : '클릭 +' + x.d + 'ms'}</span><span class="dl">${x.db}dB</span><span class="dr ${x.res.startsWith('타격') ? 'hit' : (x.res.startsWith('메트로놈') || x.res.startsWith('말소리')) ? 'ign' : ''}">${x.res}</span></li>`).join('');
+  $('diagList').innerHTML = DIAG.map(x => `<li><span class="dt">${x.time}</span><span class="dd">${x.d == null ? '클릭 없음' : '클릭 +' + x.d + 'ms'}</span><span class="dl">${x.db}dB</span><span class="dl">${x.sh == null ? '' : '뒤 ' + x.sh + '%'}</span><span class="dr ${x.res.startsWith('타격') ? 'hit' : (x.res.startsWith('메트로놈') || x.res.startsWith('말소리')) ? 'ign' : ''}">${x.res}</span></li>`).join('');
+}
+
+/* 진단 녹음: 실제 마이크 소리와 클릭 시각을 파일로 저장해 원인을 분석함 */
+let DREC = null;
+async function startDiagRec() {
+  if (T.running) { toast('연습을 멈춘 뒤 눌러 주세요'); return; }
+  try { await ensureAudio(); } catch (e) { micError(e); return; }
+  pushDetector();
+  DREC = { pcm: [], onsets: [], clicks: [] };
+  onsetNode.port.postMessage({ rec: true });
+  newSession(); laneHits = [];
+  startTransport('practice');
+  const steps = [[0, '1단계: 아무것도 하지 말고 가만히'], [5, '2단계: 폰 가까이에서 말하기'], [10, '3단계: 드럼을 몇 번 치기']];
+  const btn = $('diagRec'); btn.disabled = true;
+  const t0 = performance.now();
+  const iv = setInterval(() => {
+    const sec = (performance.now() - t0) / 1000;
+    const st = steps.filter(x => sec >= x[0]).pop();
+    $('diagStep').textContent = `${st[1]}  (${Math.max(0, 15 - Math.floor(sec))}초 남음)`;
+    if (sec >= 15) { clearInterval(iv); finishDiagRec(); }
+  }, 200);
+}
+function finishDiagRec() {
+  onsetNode.port.postMessage({ rec: false });
+  stopTransport();
+  const rec = DREC; DREC = null;
+  const total = rec.pcm.reduce((a, c) => a + c.d.length, 0);
+  const i16 = new Int16Array(total); let o = 0;
+  rec.pcm.forEach(c => { for (let k = 0; k < c.d.length; k++) i16[o++] = Math.max(-32768, Math.min(32767, Math.round(c.d[k] * 32767))); });
+  let bin = ''; const u8 = new Uint8Array(i16.buffer);
+  for (let k = 0; k < u8.length; k += 0x8000) bin += String.fromCharCode.apply(null, u8.subarray(k, k + 0x8000));
+  const out = {
+    app: '모두의 드럼 연습기', version: APP_VER, date: new Date().toISOString(), ua: navigator.userAgent,
+    sampleRate: ctx.sampleRate, baseLatency: ctx.baseLatency, outputLatency: ctx.outputLatency,
+    aec: micAec, track: micStream && micStream.getAudioTracks()[0] ? micStream.getAudioTracks()[0].getSettings() : null,
+    settings: { bpm: T.bpm, beats: T.bpb, countIn: T.countIn, startT: T.startT, sens: S.sens, thr: sensToThr(S.sens), clickVol: S.clickVol, judgeSub: S.judgeSub, profile: prof(), voiceFilter: S.voiceFilter },
+    learned: BL.clusters, beats: T.beats.map(b => b.t), clicksAll: rec.clicks,
+    onsets: rec.onsets, pcmStartFrame: rec.pcm.length ? rec.pcm[0].f : null, pcm16: btoa(bin)
+  };
+  const blob = new Blob([JSON.stringify(out)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `드럼진단_${new Date().toTimeString().slice(0, 8).replace(/:/g, '')}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  $('diagRec').disabled = false;
+  $('diagStep').textContent = '저장했습니다. 다운로드된 파일을 대화창에 첨부해 주세요.';
 }
 
 /* 초기화 */
 $('sigSel').value = S.beats; $('judgeSel').value = S.judgeSub; $('clickSel').value = S.clickSub; $('gapSel').value = S.gap;
 $('allNotesChk').checked = S.allNotes; $('sensRange').value = S.sens; $('volRange').value = S.clickVol;
 $('countInChk').checked = S.countIn; $('wakeChk').checked = S.wake; $('voiceChk').checked = S.voiceFilter;
+$('verText').textContent = `앱 버전 ${APP_VER} (메트로놈 음 거르기·말소리 거르기·진단 녹음)`;
+$('aecChk').checked = S.aec === true;
+$('aecChk').addEventListener('change', async e => { S.aec = e.target.checked; save(); if (ctx && micStream) { try { await openMic(); } catch (err) { micError(err); } } });
+$('diagRec').addEventListener('click', startDiagRec);
 setBpm(S.bpm); renderDiff(); renderProfiles(); renderHist(); placeThr();
 $('speedSel').value = S.scoreSpeed; $('loopChk').checked = S.scoreLoop;
 loadScore(S.scoreId); fillScoreSelect();
