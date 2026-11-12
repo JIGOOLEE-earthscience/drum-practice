@@ -249,7 +249,13 @@ nav.tabs button.on{color:var(--head);box-shadow:inset 0 3px 0 var(--bronze)}
 
       <div class="card">
         <h3 style="margin-top:0">보정하기: <span id="calName"></span></h3>
-        <p class="help">해당 장치를 연결하고 시작을 누르세요. 4번 세고 나면 클릭이 16번 나옵니다. 클릭에 정확히 맞춰 스네어나 패드를 치세요.</p>
+        <div id="calModeRow" class="row" style="margin-bottom:8px" hidden>
+          <select id="calMode" class="grow" aria-label="보정 방식">
+            <option value="loop">자동 측정 (치지 않고 가만히 두기)</option>
+            <option value="tap">치면서 보정</option>
+          </select>
+        </div>
+        <p class="help" id="calHelp"></p>
         <canvas id="calLane"></canvas>
         <div class="row">
           <div class="grow"><div class="cal-big" id="calBig">—</div><div class="cal-progress" id="calProg">대기 중</div></div>
@@ -350,8 +356,8 @@ const HKEY = 'drumpractice.history.v1';
 const DEF = {
   bpm: 100, beats: 4, clickSub: 1, judgeSub: 2, allNotes: false, gap: 'off',
   diff: 'normal', sens: 55, inputId: '', clickVol: 0.8, countIn: true, wake: true,
-  profiles: [{ id: 'p1', name: '유선 이어폰', type: 'wired', offset: null }],
-  active: 'p1'
+  profiles: [{ id: 'spk', name: '폰 스피커', type: 'speaker', offset: null }, { id: 'p1', name: '유선 이어폰', type: 'wired', offset: null }],
+  active: 'spk'
 };
 const WIN = { easy: [25, 50], normal: [15, 35], hard: [8, 20] };
 const TYPE_LABEL = { wired: '유선', bt: '블루투스', speaker: '스피커' };
@@ -359,8 +365,15 @@ const TYPE_LABEL = { wired: '유선', bt: '블루투스', speaker: '스피커' }
 let S = load();
 let HIST = loadHist();
 function load() {
-  try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); }
-  catch (e) { return Object.assign({}, DEF); }
+  let s;
+  try { s = Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); }
+  catch (e) { s = Object.assign({}, DEF); }
+  // 예전 버전 사용자: 폰 스피커 장치가 없으면 추가하고, 아무것도 보정 안 했으면 스피커를 기본으로
+  if (!s.profiles.some(p => p.type === 'speaker')) {
+    s.profiles = [{ id: 'spk', name: '폰 스피커', type: 'speaker', offset: null }, ...s.profiles];
+    if (s.profiles.every(p => p.offset == null)) s.active = 'spk';
+  }
+  return s;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 function loadHist() { try { return JSON.parse(localStorage.getItem(HKEY) || '[]'); } catch (e) { return []; } }
@@ -392,7 +405,7 @@ class OnsetProcessor extends AudioWorkletProcessor {
     this.slowCoef = 1 - Math.exp(-1 / (0.03 * sampleRate));
     const rc = 1 / (2 * Math.PI * 60);
     this.hpA = rc / (rc + 1 / sampleRate); this.hpX = 0; this.hpY = 0;
-    this.last = -1e12; this.pending = null;
+    this.last = -1e12; this.lastPeak = 1; this.pending = null;
     this.mPeak = 0; this.mCount = 0; this.mEvery = Math.round(0.05 * sampleRate);
     this.port.onmessage = (e) => {
       const d = e.data;
@@ -417,9 +430,10 @@ class OnsetProcessor extends AudioWorkletProcessor {
         if (a > this.pending.peak) this.pending.peak = a;
         if (--this.pending.remain <= 0) {
           this.port.postMessage({ type: 'onset', t: this.pending.frame / sampleRate, peak: this.pending.peak });
+          this.lastPeak = this.pending.peak;
           this.pending = null;
         }
-      } else if (this.fast > this.thr && this.fast > this.slow * this.ratio && f - this.last > this.refr) {
+      } else if (this.fast > this.thr && this.fast > this.slow * this.ratio && (f - this.last > this.refr || a > this.lastPeak * 3)) {
         this.last = f;
         this.pending = { frame: f, peak: a, remain: Math.round(0.008 * sampleRate) };
       }
@@ -483,7 +497,7 @@ function pushDetector() {
 /* =========================================================
    3. 메트로놈 스케줄러 (오디오 시계로 미리 예약)
    ========================================================= */
-const T = { running: false, kind: null, timer: null, beats: [], nextT: 0, idx: 0, countIn: 0, bpm: 100, bpb: 4, matched: new Set(), missCursor: 0, endAt: null };
+const T = { clicks: [], running: false, kind: null, timer: null, beats: [], nextT: 0, idx: 0, countIn: 0, bpm: 100, bpb: 4, matched: new Set(), missCursor: 0, endAt: null };
 
 function gapMuted(bar) {
   if (S.gap === 'off' || bar < 0 || T.kind !== 'practice') return false;
@@ -501,6 +515,7 @@ function click(t, type) {
   g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
   o.connect(g).connect(clickBus);
   o.start(t); o.stop(t + 0.06);
+  T.clicks.push(t);
 }
 
 function scheduleBeat(t, i) {
@@ -530,6 +545,7 @@ function tick() {
     T.nextT += 60 / T.bpm;
     T.idx++;
   }
+  while (T.clicks.length && T.clicks[0] < ctx.currentTime - 3) T.clicks.shift();
   if (T.kind === 'practice' && S.allNotes) checkMisses();
   if (T.kind === 'calib' && T.endAt != null && ctx.currentTime > T.endAt) finishCalib();
 }
@@ -539,7 +555,7 @@ function startTransport(kind) {
   T.bpm = kind === 'calib' ? CAL_BPM : S.bpm;
   T.bpb = kind === 'calib' ? 4 : S.beats;
   T.countIn = (kind === 'calib' || S.countIn) ? T.bpb : 0;
-  T.beats = []; T.idx = 0; T.matched = new Set(); T.missCursor = 0; T.endAt = null;
+  T.beats = []; T.clicks = []; T.idx = 0; T.matched = new Set(); T.missCursor = 0; T.endAt = null;
   T.nextT = ctx.currentTime + 0.2;
   T.startT = T.nextT;
   tick();
@@ -592,8 +608,19 @@ function onDetector(e) {
   meterHit();
   window.__drum.onsets.push(m.t);
   if (!T.running) return;
-  if (T.kind === 'calib') calibHit(m.t);
-  else practiceHit(m.t);
+  if (T.kind === 'calib') calibHit(m.t, m.peak);
+  else if (!isBleed(m.t, m.peak)) practiceHit(m.t);
+  else window.__drum.bleeds = (window.__drum.bleeds || 0) + 1;
+}
+
+/* 폰 스피커로 메트로놈을 틀면 클릭 소리가 마이크로 다시 들어옴.
+   자동 측정으로 알아 둔 '클릭이 마이크에 도착하는 시각'과 '크기'에 맞는 소리는 타격으로 세지 않음 */
+function isBleed(tRaw, peak) {
+  const p = prof();
+  if (p.type !== 'speaker' || p.offset == null || !p.bleed) return false;
+  const arrive = tRaw - p.offset / 1000;
+  const near = T.clicks.some(c => Math.abs(arrive - c) < 0.025);
+  return near && peak < p.bleed * S.clickVol * 2.5;
 }
 
 function practiceHit(tRaw) {
@@ -934,32 +961,43 @@ async function startCalib() {
   if (T.running) { if (T.kind === 'calib') { stopTransport(); cal = null; $('calStart').textContent = '보정 시작'; $('calProg').textContent = '취소됨'; } return; }
   try { await ensureAudio(); } catch (e) { micError(e); return; }
   onsetNode.port.postMessage({ refr: 0.12 });
-  cal = { offs: [], used: new Set() };
+  const loop = prof().type === 'speaker' && $('calMode').value === 'loop';
+  cal = { offs: [], peaks: [], used: new Set(), loop };
   startTransport('calib');
   $('calStart').textContent = '취소';
   $('calBig').textContent = '—';
-  $('calProg').textContent = '4번 세고 시작합니다';
+  $('calProg').textContent = loop ? '치지 말고 조용히 두세요' : '4번 세고 시작합니다';
 }
-function calibHit(tRaw) {
+function calibHit(tRaw, peak) {
   // 소리가 늦게 들리므로 오차는 대부분 양수: 바로 앞 클릭에 대응시킴
   let b = null;
   for (const x of T.beats) if (!x.inCount && x.t <= tRaw + 0.15) b = x;
   if (!b || cal.used.has(b.i)) return;
   const o = tRaw - b.t; if (o <= -0.15 || o >= 0.6) return;
-  cal.used.add(b.i); cal.offs.push(o * 1000);
+  cal.used.add(b.i); cal.offs.push(o * 1000); cal.peaks.push(peak || 0);
   $('calProg').textContent = `${cal.offs.length} / ${CAL_N}`;
 }
 function finishCalib() {
   stopTransport(); pushDetector();
   $('calStart').textContent = '다시 보정';
   const o = cal.offs.slice(2); // 처음 두 번은 적응 구간이라 제외
+  if (cal.loop && o.length < 8) {
+    $('calProg').textContent = '클릭 소리가 마이크에 거의 들어오지 않습니다. 걸러낼 필요가 없으니 방식을 ‘치면서 보정’으로 바꿔 다시 해 주세요.';
+    $('calMode').value = 'tap'; renderCalHelp(); cal = null; return;
+  }
   if (o.length < 8) { $('calProg').textContent = `감지된 타격이 ${cal.offs.length}번뿐입니다. 감도를 확인하고 다시 해 주세요.`; cal = null; return; }
   const sorted = [...o].sort((a, b) => a - b), med = sorted[Math.floor(sorted.length / 2)];
   const mad = [...o.map(v => Math.abs(v - med))].sort((a, b) => a - b)[Math.floor(o.length / 2)] || 1;
   const inl = o.filter(v => Math.abs(v - med) <= Math.max(3 * mad, 15));
   const [m, sd] = meanSd(inl);
-  const p = prof(); p.offset = Math.round(m); save(); renderProfiles();
+  const p = prof(); p.offset = Math.round(m);
+  if (cal.loop) {
+    const pk = cal.peaks.slice(2).filter((_, i) => Math.abs(o[i] - med) <= Math.max(3 * mad, 15));
+    p.bleed = Math.max(...pk) / Math.max(S.clickVol, 0.05);
+  }
+  save(); renderProfiles();
   $('calBig').textContent = p.offset + 'ms';
+  if (cal.loop) { $('calProg').textContent = '저장됨. 이제 클릭 소리는 타격으로 세지 않습니다.'; cal.done = { m, list: o }; return; }
   $('calProg').textContent = sd > 20 ? `저장했지만 흔들림이 ±${Math.round(sd)}ms로 큽니다. 한 번 더 해 보길 권합니다.` : `저장됨. 흔들림 ±${Math.round(sd)}ms`;
   cal.done = { m, list: o };
 }
@@ -1031,11 +1069,19 @@ function renderProfiles() {
   const sel = $('profSel');
   sel.innerHTML = S.profiles.map(p => `<option value="${p.id}" ${p.id === S.active ? 'selected' : ''}>${esc(p.name)} ${p.offset == null ? '(보정 필요)' : p.offset + 'ms'}</option>`).join('');
   $('calName').textContent = prof().name;
+  $('calModeRow').hidden = prof().type !== 'speaker';
+  renderCalHelp();
   $('btNote').hidden = prof().type !== 'bt';
   const w = $('calWarn');
   if (prof().offset == null) { w.hidden = false; w.innerHTML = `‘${esc(prof().name)}’은 아직 보정하지 않아 판정이 한쪽으로 치우칠 수 있습니다. <button id="goCal">보정하러 가기</button>`; $('goCal').onclick = () => showTab('calib'); }
-  else if (prof().type === 'speaker') { w.hidden = false; w.textContent = '스피커 소리가 마이크에 들어가 타격으로 잡힐 수 있습니다. 클릭 음량을 줄이거나 감도를 낮추세요.'; }
+  else if (prof().type === 'speaker' && !prof().bleed) { w.hidden = false; w.innerHTML = '폰 스피커 클릭 소리가 마이크에 들어가 타격으로 잡힐 수 있습니다. 보정 탭에서 ‘자동 측정’을 하면 걸러냅니다. <button id="goCal">보정하러 가기</button>'; $('goCal').onclick = () => showTab('calib'); }
   else w.hidden = true;
+}
+function renderCalHelp() {
+  const loop = prof().type === 'speaker' && $('calMode').value === 'loop';
+  $('calHelp').textContent = loop
+    ? '폰을 연습할 자리에 두고 시작을 누르세요. 클릭이 20번 나오는 동안 치지 말고 조용히 두면, 클릭이 마이크에 들어오는 시간과 크기를 재서 저장합니다. 연습할 때 이 소리는 타격으로 세지 않습니다.'
+    : '해당 장치를 연결하고 시작을 누르세요. 4번 세고 나면 클릭이 16번 나옵니다. 클릭에 정확히 맞춰 스네어나 패드를 치세요.';
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 $('addProf').addEventListener('click', () => {
@@ -1044,6 +1090,7 @@ $('addProf').addEventListener('click', () => {
   S.profiles.push(p); S.active = p.id; save(); $('newName').value = ''; renderProfiles(); toast(`‘${name}’ 추가됨. 이제 보정하세요`);
 });
 $('calStart').addEventListener('click', startCalib);
+$('calMode').addEventListener('change', renderCalHelp);
 document.querySelectorAll('[data-adj]').forEach(b => b.addEventListener('click', () => {
   const p = prof(); p.offset = (p.offset == null ? Math.round(offsetSec() * 1000) : p.offset) + (+b.dataset.adj);
   save(); renderProfiles(); $('calBig').textContent = p.offset + 'ms';
